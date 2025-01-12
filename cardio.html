@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cardio Plan</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f4f4f9;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            background: white;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            border-radius: 8px;
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+        }
+        .plan {
+            margin-top: 20px;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Today's Cardio Plan</h1>
+        <p id="date" style="text-align:center; color:#555;"></p>
+        <div id="plan" class="plan"></div>
+    </div>
+
+    <script>
+        // Cardio plan data in JSON format
+        const cardioPlan = {
+            "week1": {
+                "Monday": [
+                    "Jumping Jacks (30 sec x 2)",
+                    "High Knees (30 sec x 2)",
+                    "Step-Touch with Arm Swings (1 min x 2)"
+                ],
+                "Tuesday": [
+                    "Brisk Walk in Place (1 min x 2)",
+                    "Side Shuffles (30 sec x 2)",
+                    "Standing Toe Taps (30 sec x 2)"
+                ],
+                "Wednesday": [
+                    "Step-Touch with Knee Lifts (1 min x 2)",
+                    "Front Kicks (30 sec x 2)",
+                    "Arm Circles with Side Steps (1 min x 2)"
+                ],
+                "Thursday": [
+                    "Modified Jump Rope (1 min x 2)",
+                    "Low-Impact Skater Hops (30 sec x 2)",
+                    "Standing Jog (1 min x 2)"
+                ],
+                "Friday": [
+                    "Side-To-Side Steps with Squats (30 sec x 2)",
+                    "Light Jog with Arm Swings (30 sec x 2)",
+                    "Step-Up on Low Surface (1 min x 2)"
+                ],
+                "Saturday": [
+                    "Marching in Place (1 min x 2)",
+                    "Heel Taps Forward (30 sec x 2)",
+                    "Jump Rope (1 min x 2)"
+                ]
+            },
+            "week2": {
+                "Monday": [
+                    "Marching in Place (1 min x 2)",
+                    "Front Kicks (30 sec x 2)",
+                    "Quick Feet (30 sec x 2)"
+                ],
+                "Tuesday": [
+                    "Side Shuffles (30 sec x 2)",
+                    "Step-Touch with Arm Swings (1 min x 2)",
+                    "Butt Kicks (30 sec x 2)"
+                ],
+                "Wednesday": [
+                    "Jump Rope (1 min x 2)",
+                    "Standing Toe Taps (30 sec x 2)",
+                    "Side Steps with Overhead Clap (1 min x 2)"
+                ],
+                "Thursday": [
+                    "Brisk Walk in Place (1 min x 2)",
+                    "Side-To-Side Steps with Squats (30 sec x 2)",
+                    "Arm Circles with Side Steps (1 min x 2)"
+                ],
+                "Friday": [
+                    "High Knees (30 sec x 2)",
+                    "Step-Touch with Knee Lifts (1 min x 2)",
+                    "Side Lunges with Arm Swings (30 sec x 2)"
+                ],
+                "Saturday": [
+                    "Side Shuffles (30 sec x 2)",
+                    "Standing Jog (1 min x 2)",
+                    "Quick Feet (30 sec x 2)"
+                ]
+            },
+            "week3": {
+                "Monday": [
+                    "Butt Kicks (30 sec x 2)",
+                    "Side Steps with Arm Swings (1 min x 2)",
+                    "Front Kicks (30 sec x 2)"
+                ],
+                "Tuesday": [
+                    "Standing Jog (1 min x 2)",
+                    "Side-To-Side Steps with Squats (30 sec x 2)",
+                    "Jump Rope (1 min x 2)"
+                ],
+                "Wednesday": [
+                    "Arm Circles with Side Steps (1 min x 2)",
+                    "Light Jog with Arm Swings (30 sec x 2)",
+                    "Quick Feet (30 sec x 2)"
+                ],
+                "Thursday": [
+                    "Modified Jump Rope (1 min x 2)",
+                    "Heel Taps Forward (30 sec x 2)",
+                    "Standing Toe Taps (30 sec x 2)"
+                ],
+                "Friday": [
+                    "Side Shuffles (30 sec x 2)",
+                    "Marching in Place (1 min x 2)",
+                    "Step-Up on Low Surface (1 min x 2)"
+                ],
+                "Saturday": [
+                    "Brisk Walk in Place (1 min x 2)",
+                    "Front Kicks (30 sec x 2)",
+                    "Side Lunges with Arm Swings (30 sec x 2)"
+                ]
+            },
+            "week4": {
+                "Monday": [
+                    "Quick Feet (30 sec x 2)",
+                    "High Knees (30 sec x 2)",
+                    "Jumping Jacks (30 sec x 2)"
+                ],
+                "Tuesday": [
+                    "Step-Touch with Arm Swings (1 min x 2)",
+                    "Side Steps with Overhead Clap (1 min x 2)",
+                    "Butt Kicks (30 sec x 2)"
+                ],
+                "Wednesday": [
+                    "Standing Jog (1 min x 2)",
+                    "Side Shuffles (30 sec x 2)",
+                    "Arm Circles with Side Steps (1 min x 2)"
+                ],
+                "Thursday": [
+                    "Jump Rope (1 min x 2)",
+                    "Side-To-Side Steps with Squats (30 sec x 2)",
+                    "Step-Touch with Knee Lifts (1 min x 2)"
+                ],
+                "Friday": [
+                    "Light Jog with Arm Swings (30 sec x 2)",
+                    "Heel Taps Forward (30 sec x 2)",
+                    "Side Lunges with Arm Swings (30 sec x 2)"
+                ],
+                "Saturday": [
+                    "Modified Jump Rope (1 min x 2)",
+                    "Marching in Place (1 min x 2)",
+                    "Standing Toe Taps (30 sec x 2)"
+                ]
+            }
+        };
+
+        // Function to calculate the day and week based on the start date
+        function getPlan() {
+            const startDate = new Date("2025-01-13"); // Starting from Monday, Jan 13, 2025
+            const today = new Date();
+            const dayDiff = Math.floor((today - startDate) / (1000 * 60 * 60 * 24));
+            const week = Math.floor(dayDiff / 7) % 4 + 1; // Calculate week (Week 1 to Week 4)
+            const dayOfWeek = today.toLocaleString("en-US", { weekday: "long" });
+
+            const weekKey = `week${week}`;
+
+            if (cardioPlan[weekKey] && cardioPlan[weekKey][dayOfWeek]) {
+                return cardioPlan[weekKey][dayOfWeek];
+            } else {
+                // If no specific plan for the day, return a random plan
+                const randomWeek = `week${Math.floor(Math.random() * 4) + 1}`;
+                const randomDays = Object.keys(cardioPlan[randomWeek]);
+                const randomDay = randomDays[Math.floor(Math.random() * randomDays.length)];
+                return cardioPlan[randomWeek][randomDay];
+            }
+        }
+
+        // Render the plan for the day
+        const planElement = document.getElementById("plan");
+        const dateElement = document.getElementById("date");
+
+        const today = new Date();
+        dateElement.innerText = today.toDateString();
+
+        const plan = getPlan();
+        planElement.innerHTML = plan.map(exercise => `<li>${exercise}</li>`).join('');
+    </script>
+</body>
+</html>
