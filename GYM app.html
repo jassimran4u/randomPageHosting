@@ -1,9 +1,15 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>FitFlow - Gym App</title>
+
+  <!-- Add PWA requirements -->
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#6C63FF">
+
   <style>
     :root {
       --primary: #6C63FF;
@@ -163,10 +169,23 @@
     }
 
     @keyframes confetti {
-      0%, 100% { transform: translateY(0) rotate(0); }
-      25% { transform: translateY(-20px) rotate(15deg); }
-      50% { transform: translateY(0) rotate(-15deg); }
-      75% { transform: translateY(-10px) rotate(5deg); }
+
+      0%,
+      100% {
+        transform: translateY(0) rotate(0);
+      }
+
+      25% {
+        transform: translateY(-20px) rotate(15deg);
+      }
+
+      50% {
+        transform: translateY(0) rotate(-15deg);
+      }
+
+      75% {
+        transform: translateY(-10px) rotate(5deg);
+      }
     }
 
     .back-button {
@@ -184,15 +203,15 @@
         padding: 15px;
         border-radius: 15px;
       }
-      
+
       h1 {
         font-size: 1.8rem;
       }
-      
+
       .grid {
         grid-template-columns: repeat(2, 1fr);
       }
-      
+
       .pill {
         padding: 12px 15px;
         font-size: 0.85rem;
@@ -200,6 +219,7 @@
     }
   </style>
 </head>
+
 <body>
   <div class="container">
     <!-- Page 1 - Body Parts -->
@@ -211,7 +231,7 @@
     <!-- Page 2 - Exercises -->
     <div class="page" id="page2">
       <div class="back-button" onclick="showPage('page1')">← Back</div>
-      
+
       <h1 id="routineTitle" style="margin-top: 50px;"></h1>
       <div class="grid" id="intensity"></div>
       <div id="exercises"></div>
@@ -228,214 +248,315 @@
   </div>
 
   <script>
+
+    // Add PWA functionality
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('sw.js')
+          .then(registration => {
+            console.log('ServiceWorker registration successful');
+          })
+          .catch(err => {
+            console.log('ServiceWorker registration failed: ', err);
+          });
+      });
+    }
+
+    // Add install prompt handling
+    let deferredPrompt;
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      deferredPrompt = e;
+
+      // Show install button (you can add this button to your UI)
+      const installButton = document.createElement('button');
+      installButton.textContent = 'Install App';
+      installButton.style.position = 'fixed';
+      installButton.style.bottom = '20px';
+      installButton.style.right = '20px';
+      installButton.style.zIndex = '1000';
+      installButton.onclick = () => {
+        deferredPrompt.prompt();
+        deferredPrompt.userChoice.then((choiceResult) => {
+          if (choiceResult.outcome === 'accepted') {
+            console.log('User accepted install');
+          }
+          deferredPrompt = null;
+        });
+      };
+      document.body.appendChild(installButton);
+    });
+
+    // Create manifest and service worker inline
+    const manifest = {
+      "name": "FitFlow Gym",
+      "short_name": "FitFlow",
+      "start_url": ".",
+      "display": "standalone",
+      "background_color": "#ffffff",
+      "theme_color": "#6C63FF",
+      "icons": [
+        {
+          "src": "https://cdn-icons-png.flaticon.com/512/3063/3063188.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        },
+        {
+          "src": "https://cdn-icons-png.flaticon.com/512/3063/3063188.png",
+          "sizes": "512x512",
+          "type": "image/png"
+        }
+      ]
+    };
+
+    // Create dynamic manifest
+    const manifestString = JSON.stringify(manifest);
+    const manifestBlob = new Blob([manifestString], { type: 'application/json' });
+    const manifestURL = URL.createObjectURL(manifestBlob);
+    document.querySelector('link[rel="manifest"]').href = manifestURL;
+
+    // Create service worker
+    const serviceWorkerCode = `
+      self.addEventListener('install', (event) => {
+        event.waitUntil(
+          caches.open('fitflow-v1').then((cache) => {
+            return cache.addAll([
+              '/',
+              '/index.html',
+              // Add other assets if needed
+            ]);
+          })
+        );
+      });
+
+      self.addEventListener('fetch', (event) => {
+        event.respondWith(
+          caches.match(event.request).then((response) => {
+            return response || fetch(event.request);
+          })
+        );
+      });
+    `;
+
+    const serviceWorkerBlob = new Blob([serviceWorkerCode], { type: 'application/javascript' });
+    const serviceWorkerURL = URL.createObjectURL(serviceWorkerBlob);
+
+    // Register service worker
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register(serviceWorkerURL)
+        .then(registration => console.log('Service Worker registered'))
+        .catch(err => console.log('Service Worker registration failed:', err));
+    }
+
+
     const exercisesData =
     {
-  "legs": {
-    "beginner": [
-      { "name": "Bodyweight Squats", "reps": 15, "sets": 3 },
-      { "name": "Lunges", "reps": 12, "sets": 3 },
-      { "name": "Step-ups", "reps": 10, "sets": 3 },
-      { "name": "Glute Bridges", "reps": 15, "sets": 3 },
-      { "name": "Wall Sit", "duration": "45s", "sets": 3 }
-    ],
-    "intermediate": [
-      { "name": "Barbell Squats", "reps": 10, "sets": 4 },
-      { "name": "Romanian Deadlifts", "reps": 12, "sets": 4 },
-      { "name": "Bulgarian Split Squats", "reps": 10, "sets": 3 },
-      { "name": "Leg Press", "reps": 12, "sets": 4 },
-      { "name": "Calf Raises", "reps": 20, "sets": 4 },
-      { "name": "Lateral Lunges", "reps": 12, "sets": 3 }
-    ],
-    "advanced": [
-      { "name": "Pistol Squats", "reps": 8, "sets": 4 },
-      { "name": "Barbell Hip Thrusts", "reps": 10, "sets": 4 },
-      { "name": "Weighted Step-ups", "reps": 10, "sets": 4 },
-      { "name": "Single-leg Deadlifts", "reps": 10, "sets": 3 },
-      { "name": "Jump Squats", "reps": 15, "sets": 4 },
-      { "name": "Front Squats", "reps": 8, "sets": 4 }
-    ]
-  },
-  "chest": {
-    "beginner": [
-      { "name": "Push-Ups", "reps": 12, "sets": 3 },
-      { "name": "Incline Dumbbell Press", "reps": 10, "sets": 3 },
-      { "name": "Chest Press Machine", "reps": 12, "sets": 3 },
-      { "name": "Wall Push-Ups", "reps": 15, "sets": 3 },
-      { "name": "Dumbbell Flyes", "reps": 12, "sets": 3 }
-    ],
-    "intermediate": [
-      { "name": "Barbell Bench Press", "reps": 8, "sets": 4 },
-      { "name": "Incline Bench Press", "reps": 8, "sets": 4 },
-      { "name": "Cable Crossovers", "reps": 12, "sets": 4 },
-      { "name": "Dips", "reps": 10, "sets": 4 },
-      { "name": "Pec Deck", "reps": 12, "sets": 4 },
-      { "name": "Decline Push-Ups", "reps": 15, "sets": 4 }
-    ],
-    "advanced": [
-      { "name": "Weighted Dips", "reps": 8, "sets": 4 },
-      { "name": "Guillotine Press", "reps": 6, "sets": 4 },
-      { "name": "Spiderman Push-Ups", "reps": 12, "sets": 4 },
-      { "name": "Single-arm Chest Press", "reps": 10, "sets": 4 },
-      { "name": "Plyometric Push-Ups", "reps": 15, "sets": 4 },
-      { "name": "Incline Cable Flyes", "reps": 12, "sets": 4 }
-    ]
-  },
-  "back": {
-    "beginner": [
-      { "name": "Lat Pulldowns", "reps": 12, "sets": 3 },
-      { "name": "Seated Rows", "reps": 12, "sets": 3 },
-      { "name": "Superman Holds", "duration": "30s", "sets": 3 },
-      { "name": "Band Pull-Aparts", "reps": 15, "sets": 3 },
-      { "name": "Deadlifts", "reps": 10, "sets": 3 }
-    ],
-    "intermediate": [
-      { "name": "Bent-over Rows", "reps": 10, "sets": 4 },
-      { "name": "T-bar Rows", "reps": 10, "sets": 4 },
-      { "name": "Single-arm Dumbbell Rows", "reps": 12, "sets": 4 },
-      { "name": "Face Pulls", "reps": 15, "sets": 4 },
-      { "name": "Chin-ups", "reps": 8, "sets": 4 },
-      { "name": "Hyperextensions", "reps": 15, "sets": 4 }
-    ],
-    "advanced": [
-      { "name": "Weighted Pull-ups", "reps": 6, "sets": 4 },
-      { "name": "Pendlay Rows", "reps": 8, "sets": 4 },
-      { "name": "Chest-supported Rows", "reps": 10, "sets": 4 },
-      { "name": "Deadlifts", "reps": 6, "sets": 4 },
-      { "name": "Inverted Rows", "reps": 12, "sets": 4 },
-      { "name": "Kroc Rows", "reps": 15, "sets": 4 }
-    ]
-  },
-  "biceps": {
-    "beginner": [
-      { "name": "Dumbbell Curls", "reps": 12, "sets": 3 },
-      { "name": "Hammer Curls", "reps": 12, "sets": 3 },
-      { "name": "Barbell Curls", "reps": 10, "sets": 3 },
-      { "name": "Concentration Curls", "reps": 10, "sets": 3 },
-      { "name": "Band Curls", "reps": 15, "sets": 3 }
-    ],
-    "intermediate": [
-      { "name": "Preacher Curls", "reps": 10, "sets": 4 },
-      { "name": "Zottman Curls", "reps": 12, "sets": 4 },
-      { "name": "Cable Curls", "reps": 15, "sets": 4 },
-      { "name": "Spider Curls", "reps": 10, "sets": 4 },
-      { "name": "Reverse Curls", "reps": 12, "sets": 4 },
-      { "name": "21s", "reps": 21, "sets": 3 }
-    ],
-    "advanced": [
-      { "name": "Cheat Curls", "reps": 8, "sets": 4 },
-      { "name": "Drag Curls", "reps": 10, "sets": 4 },
-      { "name": "Behind-the-back Curls", "reps": 12, "sets": 4 },
-      { "name": "Plate Pinch Curls", "reps": 10, "sets": 4 },
-      { "name": "Eccentric Curls", "duration": "5s", "sets": 4 },
-      { "name": "Weighted Chin-ups", "reps": 6, "sets": 4 }
-    ]
-  },
-  "triceps": {
-    "beginner": [
-      { "name": "Tricep Dips", "reps": 10, "sets": 3 },
-      { "name": "Overhead Dumbbell Extensions", "reps": 12, "sets": 3 },
-      { "name": "Pushdowns", "reps": 15, "sets": 3 },
-      { "name": "Bench Dips", "reps": 12, "sets": 3 },
-      { "name": "Close-grip Push-ups", "reps": 10, "sets": 3 }
-    ],
-    "intermediate": [
-      { "name": "Skull Crushers", "reps": 10, "sets": 4 },
-      { "name": "Weighted Dips", "reps": 8, "sets": 4 },
-      { "name": "Cable Kickbacks", "reps": 12, "sets": 4 },
-      { "name": "JM Press", "reps": 8, "sets": 4 },
-      { "name": "Diamond Push-ups", "reps": 12, "sets": 4 },
-      { "name": "Tate Press", "reps": 10, "sets": 4 }
-    ],
-    "advanced": [
-      { "name": "One-arm Overhead Extensions", "reps": 8, "sets": 4 },
-      { "name": "Reverse Grip Bench Press", "reps": 6, "sets": 4 },
-      { "name": "Chain Pushdowns", "reps": 10, "sets": 4 },
-      { "name": "French Press", "reps": 10, "sets": 4 },
-      { "name": "Bodyweight Tricep Extensions", "reps": 12, "sets": 4 },
-      { "name": "Weighted Bench Dips", "reps": 10, "sets": 4 }
-    ]
-  },
-  "shoulder": {
-    "beginner": [
-      { "name": "Dumbbell Press", "reps": 12, "sets": 3 },
-      { "name": "Lateral Raises", "reps": 12, "sets": 3 },
-      { "name": "Front Raises", "reps": 12, "sets": 3 },
-      { "name": "Face Pulls", "reps": 15, "sets": 3 },
-      { "name": "Arnold Press", "reps": 10, "sets": 3 }
-    ],
-    "intermediate": [
-      { "name": "Barbell Overhead Press", "reps": 8, "sets": 4 },
-      { "name": "Upright Rows", "reps": 10, "sets": 4 },
-      { "name": "Reverse Pec Deck", "reps": 12, "sets": 4 },
-      { "name": "Landmine Press", "reps": 10, "sets": 4 },
-      { "name": "Cuban Press", "reps": 12, "sets": 4 },
-      { "name": "Plate Raises", "reps": 15, "sets": 4 }
-    ],
-    "advanced": [
-      { "name": "Push Press", "reps": 6, "sets": 4 },
-      { "name": "Handstand Push-ups", "reps": 8, "sets": 4 },
-      { "name": "Bradford Press", "reps": 10, "sets": 4 },
-      { "name": "Single-arm Landmine Press", "reps": 10, "sets": 4 },
-      { "name": "Behind-the-neck Press", "reps": 8, "sets": 4 },
-      { "name": "Kettlebell Windmills", "reps": 10, "sets": 4 }
-    ]
-  },
-  "core": {
-    "beginner": [
-      { "name": "Plank", "duration": "30s", "sets": 3 },
-      { "name": "Crunches", "reps": 15, "sets": 3 },
-      { "name": "Bird Dog", "reps": 12, "sets": 3 },
-      { "name": "Dead Bug", "reps": 12, "sets": 3 },
-      { "name": "Mountain Climbers", "duration": "30s", "sets": 3 }
-    ],
-    "intermediate": [
-      { "name": "Russian Twists", "reps": 20, "sets": 4 },
-      { "name": "Hollow Body Hold", "duration": "45s", "sets": 4 },
-      { "name": "Leg Raises", "reps": 12, "sets": 4 },
-      { "name": "Side Plank", "duration": "30s", "sets": 4 },
-      { "name": "Bicycle Crunches", "reps": 20, "sets": 4 },
-      { "name": "Flutter Kicks", "duration": "45s", "sets": 4 }
-    ],
-    "advanced": [
-      { "name": "Dragon Flags", "reps": 8, "sets": 4 },
-      { "name": "L-sit Hold", "duration": "20s", "sets": 4 },
-      { "name": "Hanging Leg Raises", "reps": 12, "sets": 4 },
-      { "name": "Ab Wheel Rollouts", "reps": 10, "sets": 4 },
-      { "name": "Windshield Wipers", "reps": 12, "sets": 4 },
-      { "name": "Toes-to-bar", "reps": 10, "sets": 4 }
-    ]
-  },
-  "cardio": {
-    "beginner": [
-      { "name": "Brisk Walking", "duration": "20min", "sets": 1 },
-      { "name": "Cycling", "duration": "15min", "sets": 1 },
-      { "name": "Jump Rope", "duration": "10min", "sets": 1 },
-      { "name": "Stair Climbing", "duration": "10min", "sets": 1 },
-      { "name": "Elliptical", "duration": "15min", "sets": 1 }
-    ],
-    "intermediate": [
-      { "name": "Jogging", "duration": "25min", "sets": 1 },
-      { "name": "HIIT (30s/1min)", "duration": "15min", "sets": 1 },
-      { "name": "Rowing Machine", "duration": "20min", "sets": 1 },
-      { "name": "Swimming", "duration": "20min", "sets": 1 },
-      { "name": "Circuit Training", "duration": "25min", "sets": 1 },
-      { "name": "Jumping Jacks", "duration": "15min", "sets": 1 }
-    ],
-    "advanced": [
-      { "name": "Sprints", "duration": "20min", "sets": 1 },
-      { "name": "Hill Repeats", "duration": "30min", "sets": 1 },
-      { "name": "Burpees", "reps": 15, "sets": 4 },
-      { "name": "Box Jumps", "reps": 20, "sets": 4 },
-      { "name": "Double Unders", "reps": 50, "sets": 4 },
-      { "name": "Sandbag Runs", "duration": "20min", "sets": 1 }
-    ]
-  }
-};
+      "legs": {
+        "beginner": [
+          { "name": "Bodyweight Squats", "reps": 15, "sets": 3 },
+          { "name": "Lunges", "reps": 12, "sets": 3 },
+          { "name": "Step-ups", "reps": 10, "sets": 3 },
+          { "name": "Glute Bridges", "reps": 15, "sets": 3 },
+          { "name": "Wall Sit", "duration": "45s", "sets": 3 }
+        ],
+        "intermediate": [
+          { "name": "Barbell Squats", "reps": 10, "sets": 4 },
+          { "name": "Romanian Deadlifts", "reps": 12, "sets": 4 },
+          { "name": "Bulgarian Split Squats", "reps": 10, "sets": 3 },
+          { "name": "Leg Press", "reps": 12, "sets": 4 },
+          { "name": "Calf Raises", "reps": 20, "sets": 4 },
+          { "name": "Lateral Lunges", "reps": 12, "sets": 3 }
+        ],
+        "advanced": [
+          { "name": "Pistol Squats", "reps": 8, "sets": 4 },
+          { "name": "Barbell Hip Thrusts", "reps": 10, "sets": 4 },
+          { "name": "Weighted Step-ups", "reps": 10, "sets": 4 },
+          { "name": "Single-leg Deadlifts", "reps": 10, "sets": 3 },
+          { "name": "Jump Squats", "reps": 15, "sets": 4 },
+          { "name": "Front Squats", "reps": 8, "sets": 4 }
+        ]
+      },
+      "chest": {
+        "beginner": [
+          { "name": "Push-Ups", "reps": 12, "sets": 3 },
+          { "name": "Incline Dumbbell Press", "reps": 10, "sets": 3 },
+          { "name": "Chest Press Machine", "reps": 12, "sets": 3 },
+          { "name": "Wall Push-Ups", "reps": 15, "sets": 3 },
+          { "name": "Dumbbell Flyes", "reps": 12, "sets": 3 }
+        ],
+        "intermediate": [
+          { "name": "Barbell Bench Press", "reps": 8, "sets": 4 },
+          { "name": "Incline Bench Press", "reps": 8, "sets": 4 },
+          { "name": "Cable Crossovers", "reps": 12, "sets": 4 },
+          { "name": "Dips", "reps": 10, "sets": 4 },
+          { "name": "Pec Deck", "reps": 12, "sets": 4 },
+          { "name": "Decline Push-Ups", "reps": 15, "sets": 4 }
+        ],
+        "advanced": [
+          { "name": "Weighted Dips", "reps": 8, "sets": 4 },
+          { "name": "Guillotine Press", "reps": 6, "sets": 4 },
+          { "name": "Spiderman Push-Ups", "reps": 12, "sets": 4 },
+          { "name": "Single-arm Chest Press", "reps": 10, "sets": 4 },
+          { "name": "Plyometric Push-Ups", "reps": 15, "sets": 4 },
+          { "name": "Incline Cable Flyes", "reps": 12, "sets": 4 }
+        ]
+      },
+      "back": {
+        "beginner": [
+          { "name": "Lat Pulldowns", "reps": 12, "sets": 3 },
+          { "name": "Seated Rows", "reps": 12, "sets": 3 },
+          { "name": "Superman Holds", "duration": "30s", "sets": 3 },
+          { "name": "Band Pull-Aparts", "reps": 15, "sets": 3 },
+          { "name": "Deadlifts", "reps": 10, "sets": 3 }
+        ],
+        "intermediate": [
+          { "name": "Bent-over Rows", "reps": 10, "sets": 4 },
+          { "name": "T-bar Rows", "reps": 10, "sets": 4 },
+          { "name": "Single-arm Dumbbell Rows", "reps": 12, "sets": 4 },
+          { "name": "Face Pulls", "reps": 15, "sets": 4 },
+          { "name": "Chin-ups", "reps": 8, "sets": 4 },
+          { "name": "Hyperextensions", "reps": 15, "sets": 4 }
+        ],
+        "advanced": [
+          { "name": "Weighted Pull-ups", "reps": 6, "sets": 4 },
+          { "name": "Pendlay Rows", "reps": 8, "sets": 4 },
+          { "name": "Chest-supported Rows", "reps": 10, "sets": 4 },
+          { "name": "Deadlifts", "reps": 6, "sets": 4 },
+          { "name": "Inverted Rows", "reps": 12, "sets": 4 },
+          { "name": "Kroc Rows", "reps": 15, "sets": 4 }
+        ]
+      },
+      "biceps": {
+        "beginner": [
+          { "name": "Dumbbell Curls", "reps": 12, "sets": 3 },
+          { "name": "Hammer Curls", "reps": 12, "sets": 3 },
+          { "name": "Barbell Curls", "reps": 10, "sets": 3 },
+          { "name": "Concentration Curls", "reps": 10, "sets": 3 },
+          { "name": "Band Curls", "reps": 15, "sets": 3 }
+        ],
+        "intermediate": [
+          { "name": "Preacher Curls", "reps": 10, "sets": 4 },
+          { "name": "Zottman Curls", "reps": 12, "sets": 4 },
+          { "name": "Cable Curls", "reps": 15, "sets": 4 },
+          { "name": "Spider Curls", "reps": 10, "sets": 4 },
+          { "name": "Reverse Curls", "reps": 12, "sets": 4 },
+          { "name": "21s", "reps": 21, "sets": 3 }
+        ],
+        "advanced": [
+          { "name": "Cheat Curls", "reps": 8, "sets": 4 },
+          { "name": "Drag Curls", "reps": 10, "sets": 4 },
+          { "name": "Behind-the-back Curls", "reps": 12, "sets": 4 },
+          { "name": "Plate Pinch Curls", "reps": 10, "sets": 4 },
+          { "name": "Eccentric Curls", "duration": "5s", "sets": 4 },
+          { "name": "Weighted Chin-ups", "reps": 6, "sets": 4 }
+        ]
+      },
+      "triceps": {
+        "beginner": [
+          { "name": "Tricep Dips", "reps": 10, "sets": 3 },
+          { "name": "Overhead Dumbbell Extensions", "reps": 12, "sets": 3 },
+          { "name": "Pushdowns", "reps": 15, "sets": 3 },
+          { "name": "Bench Dips", "reps": 12, "sets": 3 },
+          { "name": "Close-grip Push-ups", "reps": 10, "sets": 3 }
+        ],
+        "intermediate": [
+          { "name": "Skull Crushers", "reps": 10, "sets": 4 },
+          { "name": "Weighted Dips", "reps": 8, "sets": 4 },
+          { "name": "Cable Kickbacks", "reps": 12, "sets": 4 },
+          { "name": "JM Press", "reps": 8, "sets": 4 },
+          { "name": "Diamond Push-ups", "reps": 12, "sets": 4 },
+          { "name": "Tate Press", "reps": 10, "sets": 4 }
+        ],
+        "advanced": [
+          { "name": "One-arm Overhead Extensions", "reps": 8, "sets": 4 },
+          { "name": "Reverse Grip Bench Press", "reps": 6, "sets": 4 },
+          { "name": "Chain Pushdowns", "reps": 10, "sets": 4 },
+          { "name": "French Press", "reps": 10, "sets": 4 },
+          { "name": "Bodyweight Tricep Extensions", "reps": 12, "sets": 4 },
+          { "name": "Weighted Bench Dips", "reps": 10, "sets": 4 }
+        ]
+      },
+      "shoulder": {
+        "beginner": [
+          { "name": "Dumbbell Press", "reps": 12, "sets": 3 },
+          { "name": "Lateral Raises", "reps": 12, "sets": 3 },
+          { "name": "Front Raises", "reps": 12, "sets": 3 },
+          { "name": "Face Pulls", "reps": 15, "sets": 3 },
+          { "name": "Arnold Press", "reps": 10, "sets": 3 }
+        ],
+        "intermediate": [
+          { "name": "Barbell Overhead Press", "reps": 8, "sets": 4 },
+          { "name": "Upright Rows", "reps": 10, "sets": 4 },
+          { "name": "Reverse Pec Deck", "reps": 12, "sets": 4 },
+          { "name": "Landmine Press", "reps": 10, "sets": 4 },
+          { "name": "Cuban Press", "reps": 12, "sets": 4 },
+          { "name": "Plate Raises", "reps": 15, "sets": 4 }
+        ],
+        "advanced": [
+          { "name": "Push Press", "reps": 6, "sets": 4 },
+          { "name": "Handstand Push-ups", "reps": 8, "sets": 4 },
+          { "name": "Bradford Press", "reps": 10, "sets": 4 },
+          { "name": "Single-arm Landmine Press", "reps": 10, "sets": 4 },
+          { "name": "Behind-the-neck Press", "reps": 8, "sets": 4 },
+          { "name": "Kettlebell Windmills", "reps": 10, "sets": 4 }
+        ]
+      },
+      "core": {
+        "beginner": [
+          { "name": "Plank", "duration": "30s", "sets": 3 },
+          { "name": "Crunches", "reps": 15, "sets": 3 },
+          { "name": "Bird Dog", "reps": 12, "sets": 3 },
+          { "name": "Dead Bug", "reps": 12, "sets": 3 },
+          { "name": "Mountain Climbers", "duration": "30s", "sets": 3 }
+        ],
+        "intermediate": [
+          { "name": "Russian Twists", "reps": 20, "sets": 4 },
+          { "name": "Hollow Body Hold", "duration": "45s", "sets": 4 },
+          { "name": "Leg Raises", "reps": 12, "sets": 4 },
+          { "name": "Side Plank", "duration": "30s", "sets": 4 },
+          { "name": "Bicycle Crunches", "reps": 20, "sets": 4 },
+          { "name": "Flutter Kicks", "duration": "45s", "sets": 4 }
+        ],
+        "advanced": [
+          { "name": "Dragon Flags", "reps": 8, "sets": 4 },
+          { "name": "L-sit Hold", "duration": "20s", "sets": 4 },
+          { "name": "Hanging Leg Raises", "reps": 12, "sets": 4 },
+          { "name": "Ab Wheel Rollouts", "reps": 10, "sets": 4 },
+          { "name": "Windshield Wipers", "reps": 12, "sets": 4 },
+          { "name": "Toes-to-bar", "reps": 10, "sets": 4 }
+        ]
+      },
+      "cardio": {
+        "beginner": [
+          { "name": "Brisk Walking", "duration": "20min", "sets": 1 },
+          { "name": "Cycling", "duration": "15min", "sets": 1 },
+          { "name": "Jump Rope", "duration": "10min", "sets": 1 },
+          { "name": "Stair Climbing", "duration": "10min", "sets": 1 },
+          { "name": "Elliptical", "duration": "15min", "sets": 1 }
+        ],
+        "intermediate": [
+          { "name": "Jogging", "duration": "25min", "sets": 1 },
+          { "name": "HIIT (30s/1min)", "duration": "15min", "sets": 1 },
+          { "name": "Rowing Machine", "duration": "20min", "sets": 1 },
+          { "name": "Swimming", "duration": "20min", "sets": 1 },
+          { "name": "Circuit Training", "duration": "25min", "sets": 1 },
+          { "name": "Jumping Jacks", "duration": "15min", "sets": 1 }
+        ],
+        "advanced": [
+          { "name": "Sprints", "duration": "20min", "sets": 1 },
+          { "name": "Hill Repeats", "duration": "30min", "sets": 1 },
+          { "name": "Burpees", "reps": 15, "sets": 4 },
+          { "name": "Box Jumps", "reps": 20, "sets": 4 },
+          { "name": "Double Unders", "reps": 50, "sets": 4 },
+          { "name": "Sandbag Runs", "duration": "20min", "sets": 1 }
+        ]
+      }
+    };
 
 
 
 
-let currentWorkout = {
+    let currentWorkout = {
       bodyPart: null,
       intensity: 'beginner',
       exercises: []
@@ -470,7 +591,7 @@ let currentWorkout = {
 
     function selectBodyPart(part) {
       currentWorkout.bodyPart = part;
-      document.getElementById('routineTitle').textContent = 
+      document.getElementById('routineTitle').textContent =
         `${part.charAt(0).toUpperCase() + part.slice(1)} Workout`;
       selectIntensity('beginner');
       showPage('page2');
@@ -488,7 +609,7 @@ let currentWorkout = {
       const container = document.getElementById('exercises');
       container.innerHTML = '';
       const exercises = exercisesData[currentWorkout.bodyPart][currentWorkout.intensity];
-      
+
       exercises.forEach(ex => {
         const card = document.createElement('div');
         card.className = 'exercise-card';
@@ -542,4 +663,5 @@ let currentWorkout = {
     initializeApp();
   </script>
 </body>
+
 </html>
