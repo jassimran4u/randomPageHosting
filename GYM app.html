@@ -10,6 +10,12 @@
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#6C63FF">
 
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="FitFlow">
+  <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/3063/3063188.png">
+  <link rel="apple-touch-startup-image" href="/splash.png">  
+
   <style>
     :root {
       --primary: #6C63FF;
@@ -247,6 +253,14 @@
     </div>
   </div>
 
+  <div id="ios-install" style="display: none; position: fixed; bottom: 20px; left: 20px; background: white; padding: 10px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.2);">
+    <p>To install:</p>
+    <ol>
+      <li>Tap <img src="https://img.icons8.com/ios/50/share--v1.png" style="width:20px;vertical-align:middle"></li>
+      <li>Select "Add to Home Screen"</li>
+    </ol>
+  </div>
+
   <script>
 
     // Add PWA functionality
@@ -255,6 +269,7 @@
         navigator.serviceWorker.register('sw.js')
           .then(registration => {
             console.log('ServiceWorker registration successful');
+            if (registration.active) registration.active.postMessage('claim');
           })
           .catch(err => {
             console.log('ServiceWorker registration failed: ', err);
@@ -294,6 +309,12 @@
       "start_url": ".",
       "display": "standalone",
       "background_color": "#ffffff",
+  "orientation": "portrait",
+  "prefer_related_applications": false,
+  "ios": {
+    "supports_tablet": true,
+    "web_app_capable": true
+  },
       "theme_color": "#6C63FF",
       "icons": [
         {
@@ -323,6 +344,7 @@
             return cache.addAll([
               '/',
               '/index.html',
+              'https://cdn-icons-png.flaticon.com/512/3063/3063188.png',
               // Add other assets if needed
             ]);
           })
@@ -661,6 +683,12 @@
 
     // Start the app
     initializeApp();
+
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+if (isIOS) {
+  document.getElementById('ios-install').style.display = 'block';
+}
+
   </script>
 </body>
 
