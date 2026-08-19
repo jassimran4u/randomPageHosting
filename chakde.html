@@ -1340,6 +1340,23 @@ function goBack(){
   }
 }
 
+// Some third-party viewers (e.g. GitHub HTML-preview proxies) inject a <base> tag
+// pointing at an absolute raw-file URL. That makes hash-only hrefs like "#/0" resolve
+// to a full navigation to that raw URL instead of a same-page hash change. Setting
+// location.hash directly in JS always targets the current document, regardless of
+// any injected <base>, so intercept clicks on internal nav links and do that instead.
+document.addEventListener("click", (e) => {
+  const a = e.target.closest("a[href^='#/']");
+  if(!a) return;
+  e.preventDefault();
+  const hash = a.getAttribute("href");
+  if(location.hash === hash){
+    render();
+  } else {
+    location.hash = hash;
+  }
+});
+
 document.addEventListener("keydown", (e) => {
   if(e.key === "Backspace" && document.activeElement.tagName !== "INPUT"){
     e.preventDefault();
