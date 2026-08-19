@@ -1,0 +1,1357 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Frontend System Design — Interactive Map</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🧩</text></svg>">
+<link rel="manifest" href="data:application/manifest+json,{%22name%22:%22Frontend System Design — Interactive Map%22,%22short_name%22:%22FSD Map%22,%22description%22:%22Interactive mind map for learning frontend system design.%22,%22id%22:%22.%22,%22start_url%22:%22index.html%22,%22scope%22:%22.%22,%22display%22:%22standalone%22,%22orientation%22:%22portrait-primary%22,%22background_color%22:%22rgb(10,6,32)%22,%22theme_color%22:%22rgb(10,6,32)%22,%22icons%22:[{%22src%22:%22data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'><rect width='512' height='512' rx='96' fill='rgb(15,8,40)'/><text x='256' y='300' font-size='300' text-anchor='middle'>🧩</text></svg>%22,%22sizes%22:%22192x192 512x512%22,%22type%22:%22image/svg+xml%22,%22purpose%22:%22any%22},{%22src%22:%22data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'><rect width='512' height='512' fill='rgb(15,8,40)'/><text x='256' y='290' font-size='220' text-anchor='middle'>🧩</text></svg>%22,%22sizes%22:%22512x512%22,%22type%22:%22image/svg+xml%22,%22purpose%22:%22maskable%22}]}">
+<meta name="theme-color" content="#0a0620">
+<meta name="mobile-web-app-capable" content="yes">
+<style>
+  :root{
+    --bg-deep:#0a0620;
+    --bg-mid:#170b3f;
+    --bg-mid2:#20124f;
+    --pink:#ff3d81;
+    --orange:#ff9a44;
+    --purple:#8b3dff;
+    --violet:#b14eff;
+    --text-main:#f5f1ff;
+    --text-soft:#cfc6ea;
+    --text-muted:#a89bcf;
+    --card-bg:rgba(255,255,255,0.045);
+    --card-border:rgba(255,255,255,0.09);
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0; overflow-x:hidden; width:100%;}
+  body{
+    min-height:100vh;
+    background:
+      radial-gradient(600px 500px at 12% 8%, rgba(255,61,129,0.16), transparent 60%),
+      radial-gradient(700px 600px at 90% 12%, rgba(139,61,255,0.20), transparent 60%),
+      radial-gradient(800px 700px at 50% 100%, rgba(255,154,68,0.10), transparent 55%),
+      linear-gradient(160deg, var(--bg-deep) 0%, var(--bg-mid) 55%, var(--bg-mid2) 100%);
+    background-attachment:fixed;
+    color:var(--text-main);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    -webkit-font-smoothing:antialiased;
+    overflow-x:hidden;
+  }
+  body::before{
+    content:'';
+    position:fixed; inset:0; pointer-events:none; z-index:0;
+    background-image:
+      linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px);
+    background-size:42px 42px;
+    mask-image: radial-gradient(circle at 50% 20%, rgba(0,0,0,0.6), transparent 70%);
+  }
+  .glow-orb{position:fixed; border-radius:50%; filter:blur(60px); opacity:0.5; z-index:0; pointer-events:none;}
+  .glow-orb.a{width:340px; height:340px; top:-100px; left:-100px; background:radial-gradient(circle, var(--pink), transparent 70%); animation:drift 18s ease-in-out infinite;}
+  .glow-orb.b{width:420px; height:420px; top:40%; right:-160px; background:radial-gradient(circle, var(--purple), transparent 70%); animation:drift 22s ease-in-out infinite reverse;}
+  .glow-orb.c{width:300px; height:300px; bottom:-120px; left:30%; background:radial-gradient(circle, var(--orange), transparent 70%); animation:drift 20s ease-in-out infinite;}
+  @keyframes drift{0%,100%{transform:translate(0,0);}50%{transform:translate(30px,-20px);}}
+
+  .wrap{position:relative; z-index:1; max-width:1080px; margin:0 auto; padding:22px 22px 80px; transition:padding-top .1s;}
+
+  /* Top bar — fixed (not sticky) so it always stays put regardless of ancestor overflow */
+  .topbar{
+    position:fixed; top:0; left:0; right:0; z-index:50;
+    background:linear-gradient(180deg, rgba(10,6,32,0.94), rgba(10,6,32,0.6));
+    backdrop-filter:blur(10px);
+  }
+  .topbar-inner{
+    max-width:1080px; margin:0 auto;
+    display:flex; align-items:center; gap:12px;
+    padding:14px 22px;
+  }
+  .btn{
+    display:inline-flex; align-items:center; gap:6px;
+    background:var(--card-bg); border:1px solid var(--card-border);
+    color:var(--text-main); border-radius:12px; padding:8px 14px;
+    font-size:13.5px; font-weight:600; cursor:pointer; text-decoration:none;
+    transition:transform .15s, border-color .2s, box-shadow .2s;
+    white-space:nowrap;
+  }
+  .btn:hover{border-color:rgba(255,255,255,0.25); transform:translateY(-1px); box-shadow:0 6px 20px -6px rgba(255,61,129,0.35);}
+  .btn:active{transform:translateY(0);}
+  .btn.disabled{opacity:0.35; pointer-events:none;}
+  .btn svg{width:15px; height:15px;}
+
+  .crumbs{
+    flex:1; min-width:0; font-size:13px; color:var(--text-muted);
+  }
+  .crumbs a{color:var(--text-muted); text-decoration:none; transition:color .15s;}
+  .crumbs a:hover{color:var(--pink);}
+  .crumbs .sep{opacity:0.4;}
+  .crumbs .current{color:var(--text-main); font-weight:600;}
+
+  .crumbs-full{display:flex; align-items:center; gap:6px; flex-wrap:wrap;}
+  .crumbs-compact{display:none; align-items:center; gap:6px;}
+  .crumb-home{font-size:14px; text-decoration:none; flex-shrink:0;}
+  .crumb-ellipsis-wrap{position:relative; display:inline-flex; flex-shrink:0;}
+  .crumb-ellipsis{
+    background:var(--card-bg); border:1px solid var(--card-border); color:var(--text-muted);
+    border-radius:8px; padding:2px 8px; font-size:13px; font-weight:700; line-height:1.4;
+    cursor:pointer; font-family:inherit;
+  }
+  .crumb-ellipsis:hover{color:var(--pink); border-color:rgba(255,255,255,0.25);}
+  .crumb-menu{
+    display:none; flex-direction:column; gap:2px;
+    position:absolute; top:calc(100% + 8px); left:0; z-index:60;
+    min-width:170px; max-width:min(72vw, 300px);
+    background:linear-gradient(160deg, rgba(23,11,63,0.98), rgba(10,6,32,0.98));
+    border:1px solid var(--card-border); border-radius:12px; padding:6px;
+    box-shadow:0 14px 34px -10px rgba(0,0,0,0.55);
+  }
+  .crumb-ellipsis-wrap.open .crumb-menu{display:flex;}
+  .crumb-menu a{
+    display:block; padding:8px 10px; border-radius:8px; font-size:13px;
+    color:var(--text-main) !important; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+  .crumb-menu a:hover{background:rgba(255,255,255,0.08); color:var(--pink) !important;}
+
+  /* Hero */
+  .hero{padding:34px 6px 30px; text-align:left;}
+  .hero .eyebrow{
+    display:inline-block; font-size:12px; letter-spacing:.14em; text-transform:uppercase;
+    color:var(--text-muted); border:1px solid var(--card-border); border-radius:999px;
+    padding:5px 12px; margin-bottom:16px; background:var(--card-bg);
+  }
+  .hero h1{
+    font-size:clamp(28px,5vw,44px); line-height:1.12; margin:0 0 14px; font-weight:800;
+    background:linear-gradient(100deg, #fff 10%, var(--pink) 45%, var(--orange) 70%, var(--violet) 100%);
+    -webkit-background-clip:text; background-clip:text; color:transparent;
+  }
+  .hero p{color:var(--text-muted); font-size:15px; max-width:620px; margin:0 0 20px; line-height:1.6;}
+  .stats{display:flex; gap:22px; flex-wrap:wrap;}
+  .stat{background:var(--card-bg); border:1px solid var(--card-border); border-radius:14px; padding:10px 16px;}
+  .stat b{display:block; font-size:20px; background:linear-gradient(90deg,var(--pink),var(--orange)); -webkit-background-clip:text; background-clip:text; color:transparent;}
+  .stat span{font-size:11.5px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.06em;}
+
+  h2.section-title{font-size:20px; margin:6px 6px 18px; font-weight:700; display:flex; align-items:center; gap:10px;}
+  .level-tag{font-size:11px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:#fff; background:linear-gradient(90deg,var(--pink),var(--purple)); padding:4px 10px; border-radius:999px;}
+
+  /* Grid + cards */
+  .grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(250px,1fr)); gap:16px; padding:0 6px;}
+  .card{
+    position:relative; display:block; border-radius:18px; padding:20px;
+    background:var(--card-bg); border:1px solid var(--card-border);
+    text-decoration:none; color:var(--text-main); overflow:hidden;
+    opacity:0; transform:translateY(14px);
+    animation:cardIn .5s ease forwards;
+    transition:transform .25s ease, box-shadow .25s ease;
+  }
+  @keyframes cardIn{to{opacity:1; transform:translateY(0);}}
+  .card::before{
+    content:''; position:absolute; inset:0; border-radius:18px; padding:1px;
+    background:linear-gradient(135deg,var(--pink),var(--orange),var(--purple));
+    -webkit-mask:linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    mask:linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite:xor; mask-composite:exclude;
+    opacity:0; transition:opacity .3s; pointer-events:none;
+  }
+  .card:hover{transform:translateY(-4px); box-shadow:0 14px 40px -12px rgba(255,61,129,0.35), 0 10px 30px -12px rgba(139,61,255,0.3);}
+  .card:hover::before{opacity:1;}
+  .card .top-row{display:flex; align-items:flex-start; justify-content:space-between; gap:10px; margin-bottom:12px;}
+  .card .icon{font-size:26px; line-height:1; filter:drop-shadow(0 2px 8px rgba(255,61,129,0.4));}
+  .card .chev{color:var(--text-muted); font-size:18px; opacity:0.6; transition:transform .2s;}
+  .card:hover .chev{transform:translateX(3px); color:var(--pink); opacity:1;}
+  .card h3{font-size:16px; margin:0 0 6px; font-weight:700;}
+  .card p.sub{margin:0; font-size:12.5px; color:var(--text-muted); line-height:1.5;}
+  .card .chip{
+    display:inline-block; margin-top:10px; font-size:11px; font-weight:700;
+    color:var(--orange); background:rgba(255,154,68,0.12); border:1px solid rgba(255,154,68,0.25);
+    padding:3px 9px; border-radius:999px; letter-spacing:.03em;
+  }
+
+  /* Leaf detail view */
+  .leaf-wrap{display:flex; justify-content:center; padding:30px 6px 10px;}
+  .leaf-card{
+    max-width:520px; width:100%; text-align:center; padding:44px 30px;
+    border-radius:24px; background:var(--card-bg); border:1px solid var(--card-border);
+    position:relative; overflow:hidden;
+    animation:cardIn .5s ease forwards;
+  }
+  .leaf-card::before{
+    content:''; position:absolute; inset:0; border-radius:24px; padding:1.5px;
+    background:linear-gradient(135deg,var(--pink),var(--orange),var(--purple),var(--violet));
+    -webkit-mask:linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    mask:linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite:xor; mask-composite:exclude;
+    pointer-events:none;
+  }
+  .leaf-card .icon-big{font-size:56px; margin-bottom:18px; filter:drop-shadow(0 4px 16px rgba(255,61,129,0.5));}
+  .leaf-card h2{font-size:24px; margin:0 0 12px; font-weight:800;}
+  .leaf-card .badge{
+    display:inline-block; font-size:13px; color:var(--text-main); background:rgba(255,255,255,0.06);
+    border:1px solid var(--card-border); padding:7px 16px; border-radius:999px; margin-top:6px;
+  }
+  .leaf-card .path-label{margin-top:22px; font-size:11.5px; color:var(--text-muted); letter-spacing:.04em; text-transform:uppercase;}
+  .leaf-card.rich{max-width:660px; padding:40px 38px 34px;}
+
+  /* Filled-content indicator on cards */
+  .filled-dot{width:8px; height:8px; border-radius:50%; flex-shrink:0;
+    background:linear-gradient(135deg,#7cffb2,#2fd48f);
+    box-shadow:0 0 8px rgba(60,220,150,0.75);}
+  .top-row .right-cluster{display:flex; align-items:center; gap:8px;}
+
+  /* Rich content blocks (branch intro / leaf detail) */
+  .content-block{text-align:left; margin:16px 6px 26px; color:var(--text-soft);}
+  .leaf-card .content-block{margin:20px 0 6px;}
+  .content-block p.para{font-size:14.5px; line-height:1.75; margin:0 0 14px; color:var(--text-soft);}
+  .analogy-box, .callout-box{
+    border-radius:14px; padding:14px 18px; margin:14px 0; font-size:13.5px; line-height:1.65;
+  }
+  .analogy-box{border-left:3px solid var(--orange); background:rgba(255,154,68,0.09);}
+  .callout-box{border-left:3px solid var(--pink); background:rgba(255,61,129,0.09);}
+  .analogy-box .tag, .callout-box .tag{
+    display:block; font-size:11px; font-weight:700; text-transform:uppercase;
+    letter-spacing:.06em; margin-bottom:6px;
+  }
+  .analogy-box .tag{color:var(--orange);}
+  .callout-box .tag{color:var(--pink);}
+  .bullet-list{list-style:none; margin:14px 0; padding:0; display:flex; flex-direction:column; gap:11px;}
+  .bullet-item{display:flex; gap:10px; align-items:flex-start; font-size:13.5px; line-height:1.65;}
+  .bullet-item .dot{color:var(--violet); flex-shrink:0; margin-top:1px;}
+  .bullet-item b{color:var(--text-main);}
+  .note-pill{
+    display:inline-flex; align-items:center; gap:6px; font-size:12.5px; color:var(--violet);
+    background:rgba(177,78,255,0.12); border:1px solid rgba(177,78,255,0.28);
+    padding:6px 13px; border-radius:999px; margin-top:6px;
+  }
+  .watch-link{
+    display:inline-flex; align-items:center; gap:6px; font-size:12.5px; font-weight:700;
+    color:var(--orange); background:rgba(255,154,68,0.12); border:1px solid rgba(255,154,68,0.28);
+    padding:6px 13px; border-radius:999px; margin-top:10px; text-decoration:none;
+    transition:transform .15s, border-color .2s;
+  }
+  .watch-link:hover{border-color:rgba(255,154,68,0.55); transform:translateY(-1px);}
+  .related-link{
+    display:flex; align-items:center; gap:12px; margin:22px 6px 4px; padding:14px 18px;
+    border-radius:14px; background:var(--card-bg); border:1px solid var(--card-border);
+    text-decoration:none; color:var(--text-main); transition:transform .2s, border-color .2s;
+  }
+  .related-link:hover{transform:translateX(4px); border-color:rgba(255,255,255,0.25);}
+  .related-link .rl-icon{font-size:17px;}
+  .related-link .rl-text{font-size:12.5px; color:var(--text-muted); flex:1;}
+  .related-link .rl-arrow{color:var(--pink); font-size:16px;}
+
+  footer{text-align:center; color:var(--text-muted); font-size:12px; padding:30px 0 10px; opacity:0.7;}
+
+  /* ===== Mobile ===== */
+  @media (max-width:820px){
+    .wrap{padding:16px 14px 60px;}
+    .grid{grid-template-columns:repeat(auto-fill,minmax(220px,1fr));}
+  }
+  @media (max-width:680px){
+    .topbar-inner{flex-wrap:wrap; row-gap:8px; padding:12px 14px;}
+    .crumbs{flex-basis:100%; order:3;}
+    .crumbs-full{display:none;}
+    .crumbs-compact{
+      display:flex; flex-wrap:nowrap; white-space:nowrap;
+      overflow-x:auto; -webkit-overflow-scrolling:touch;
+    }
+    .crumbs-compact::-webkit-scrollbar{display:none;}
+    .crumb-parent, .crumbs-compact .current{
+      max-width:36vw; overflow:hidden; text-overflow:ellipsis;
+      white-space:nowrap; display:inline-block; vertical-align:bottom;
+    }
+  }
+  @media (max-width:640px){
+    .grid{grid-template-columns:1fr; gap:12px;}
+    .hero{padding:20px 2px 20px;}
+    .hero h1{font-size:25px;}
+    .hero p{font-size:13.5px;}
+    .stats{gap:10px;}
+    .stat{padding:8px 13px;}
+    .stat b{font-size:18px;}
+    .card{padding:16px;}
+    .section-title{font-size:17px; flex-wrap:wrap; row-gap:6px;}
+    .leaf-card{padding:30px 20px 24px; border-radius:20px;}
+    .leaf-card.rich{max-width:100%; padding:28px 18px 22px;}
+    .leaf-card .icon-big{font-size:44px;}
+    .leaf-card h2{font-size:20px;}
+    .btn{padding:7px 12px; font-size:12.5px;}
+  }
+  @media (max-width:400px){
+    .hero h1{font-size:22px;}
+    .eyebrow{font-size:11px; padding:4px 10px;}
+    .btn{padding:7px 10px;}
+  }
+</style>
+</head>
+<body>
+<div class="glow-orb a"></div>
+<div class="glow-orb b"></div>
+<div class="glow-orb c"></div>
+
+<div class="topbar" id="topbar">
+  <div class="topbar-inner">
+    <button class="btn" id="backBtn" onclick="goBack()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+      Back
+    </button>
+    <button class="btn" id="homeBtn" onclick="location.hash='#/'">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/></svg>
+      Home
+    </button>
+    <nav class="crumbs" id="crumbs"></nav>
+  </div>
+</div>
+
+<div class="wrap" id="wrap">
+  <main id="view"></main>
+
+  <footer>Frontend System Design Components · interactive mind map · click any card to explore</footer>
+</div>
+
+<script>
+const ROOT_LABEL = "Frontend System Design Components";
+
+const EP5 = "https://www.youtube.com/watch?v=9JDlZxR8gVw";
+const EP4 = "https://www.youtube.com/watch?v=XSVkWiW-t4k";
+const wl = (label, url, t) => ({ label:`Watch — ${label}`, url:`${url}&t=${t}s` });
+
+const TREE = [
+  { label:"Architectural Patterns", icon:"🏛️",
+    content:{
+      bullets:[
+        { title:"Beyond the UI", text:"Frontend system design goes beyond fetching API data and rendering it — it spans security, caching, performance, accessibility, SEO, offline support, and architectural patterns." },
+        { title:"The First Decision", text:"How you structure the frontend itself — as one unified codebase or as independently owned pieces — is one of the first architectural decisions that shapes everything else." }
+      ]
+    },
+    children:[
+    { label:"Monolithic",
+      content:{
+        paragraphs:[
+          "“Sab kuch ek hi jagah thonsna” — cramming everything into one place. Historically, many frontend systems are built as a monolithic frontend, where a single technology and pattern is expected to fit every use case."
+        ],
+        analogy:{
+          title:"The Analogy — Motu Bhai's Jugaad",
+          text:"At Motu Bhai's samosa stall, customers wanted very different things — some a quiet private space to chat, some a quick roadside snack, others a cool fountain/pool area. Motu Bhai's fix was to cram a private area, a water zone, and a smoking zone into one single space."
+        },
+        callout:{
+          title:"The Result",
+          text:"Everything turned into a mess — and the same happens when a single monolithic frontend is forced to fit every use case, using the same technology and the same pattern for everything."
+        },
+        bullets:[
+          { title:"Doesn't Scale", text:"The pattern doesn't scale as the product and team grow." },
+          { title:"Can't Serve Diverse Use Cases", text:"It can't cleanly serve different business needs at the same time." },
+          { title:"Becomes Unmaintainable", text:"Over time, the codebase turns into something that's impossible to maintain." }
+        ]
+      }
+    },
+    { label:"Micro Frontend", icon:"🧩",
+      content:{
+        paragraphs:[
+          "Specialized zones, run by expert teams. A better way: replace the monolith with the Micro Frontend pattern — breaking the UI into specialized zones, each run by its own expert team."
+        ],
+        bullets:[
+          { title:"Respective Experts", text:"Different areas of the system are designed, developed, and maintained by their own respective experts — just like each specialized zone at Motu Bhai's restaurant (beach area, private area) is handled by its own expert." },
+          { title:"Diverse Technologies", text:"Every feature has its own unique requirements. Micro frontends let multiple technologies coexist in one UI: one feature in React, another in Vue.js, and a legacy piece still running on jQuery — all without conflict." },
+          { title:"Independent Decisions", text:"Teams scale more easily because each team can make its own decisions without disturbing other teams. Changing the “beach area” has zero impact on the “open space area.”" }
+        ]
+      },
+      children:[
+        { label:"How to Achieve Micro Frontends",
+          content:{
+            paragraphs:[
+              "There are four main ways to build a Micro Frontend architecture."
+            ]
+          },
+          children:[
+            { label:"iFrame", content:{ note:"The old, simple way." } },
+            { label:"Web Components", content:{ note:"Using browser-standard components." } },
+            { label:"React Module Federation", content:{ note:"If you're using React, this is the most popular and “charming” option." } },
+            { label:"Route-based / Micro Apps", content:{ note:"A trendy approach that's been around for a while." } }
+          ]
+        }
+      ]
+    }
+  ]},
+  { label:"Communication Protocols", icon:"📡",
+    content:{
+      paragraphs:[
+        "Different ways for the client and the server (the kitchen) to talk to each other."
+      ]
+    },
+    children:[
+    { label:"Long Polling (Analytics/Data)",
+      content:{
+        analogy:{
+          title:"The Analogy — The Waiter Who Keeps Checking",
+          text:"For a big bulk order, one option is for the waiter to stand in the kitchen until the entire order is ready — but then every other customer goes unserved. The workaround: send the waiter back again and again to check — “go see if the samosa's ready; if yes, bring it, otherwise go check again.”"
+        },
+        bullets:[
+          { title:"How It Works", text:"The client asks the server for data. If it isn't ready, the server waits; the moment it's ready, it responds. The client immediately sends a new request, and this cycle repeats until all the data has arrived." },
+          { title:"The Challenges", text:"It's slow, it repeatedly disturbs the server, and firing requests over and over wastes network resources." },
+          { title:"Use Case", text:"Analytics and dashboard data that needs continuous updates." }
+        ]
+      }
+    },
+    { label:"WebSockets (Real-time/Bi-directional)",
+      content:{
+        analogy:{
+          title:"The Analogy — The Waiter Who Never Leaves",
+          text:"The waiter stays right in the kitchen. As soon as an item is ready, they bring it to your table without you asking again — and if you want to add a new item mid-order, you just tell the same waiter."
+        },
+        bullets:[
+          { title:"How It Works", text:"A persistent, bi-directional connection is established between client and server. The client can send new data at any time, and the server can push updates automatically without being asked." },
+          { title:"Use Case", text:"Highly real-time applications — chat apps, or collaborative platforms like Google Docs, where updates need to appear instantly." }
+        ]
+      }
+    },
+    { label:"Server-Sent Events (SSE) (Notifications)",
+      content:{
+        analogy:{
+          title:"The Analogy — Sit and Chill",
+          text:"You describe your whole order once and the connection is set — now you can relax. The server sends each dish the moment it's ready, on its own. But you can't place a new order over that same connection."
+        },
+        bullets:[
+          { title:"How It Works", text:"Also a persistent connection, but unidirectional (server → client only). The server pushes data on its own without being asked, but the client can't send new requests back on that same channel." },
+          { title:"Use Case", text:"Notifications — like a Facebook friend request or a like/share on your post appearing on screen without a page refresh." }
+        ]
+      }
+    }
+  ]},
+  { label:"Offline Support & Availability", icon:"📴",
+    content:{
+      paragraphs:[
+        "Motu Bhai's rule: “I can sleep, but my business shouldn't.” Here's how frontend apps keep serving users even when the network doesn't."
+      ],
+      analogy:{
+        title:"The Analogy — Motu Bhai's Refrigerator",
+        text:"His samosa business runs great all day, but at night the kitchen and seating area shut down — he needs his sleep. Since he can't serve hot samosas at night, he keeps a refrigerator outside the shop, stocked with cold coffee, packed samosas, and other items before he leaves."
+      },
+      callout:{
+        title:"What Is Offline Mode?",
+        text:"In software terms, a closed kitchen at night is Offline Mode — when the internet drops, or the server goes down, and no connection can be made."
+      },
+      bullets:[
+        { title:"The Problem", text:"The kitchen closes for the night, but the business still needs to be reachable in some form." },
+        { title:"The Solution", text:"Pre-store items outside the live kitchen — a local cache customers can reach even when nothing is being freshly prepared." },
+        { title:"Customer Engagement", text:"Known/authorized customers can come at night and access the same items (data) they were consuming during the day, and get charged for it later — keeping them engaged and aware of what's available next morning." },
+        { title:"Keep Engagement Alive", text:"Instead of showing an error screen when the internet goes down, show static information or pages the user already accessed while online, so they stay engaged with the app." },
+        { title:"Chrome Dinosaur Game", text:"When your internet drops and you open a page in Chrome, the browser gives you a dinosaur game to play, keeping you engaged as a user." },
+        { title:"Offline Google Docs", text:"You can keep editing a Google Doc even without internet; the changes sync automatically once the connection comes back." }
+      ]
+    },
+    children:[
+    { label:"Service Workers",
+      content:{
+        bullets:[
+          { title:"What They Do", text:"Service Workers achieve this offline behavior at the browser level — running in the background to cache data and handle requests made while offline." }
+        ]
+      }
+    }
+  ]},
+  { label:"Accessibility", icon:"♿",
+    content:{
+      paragraphs:[
+        "The fourth core pillar: making sure everyone — regardless of ability or language — can use what you've built."
+      ],
+      analogy:{
+        title:"The Analogy — Motu Bhai's Diverse Customers",
+        text:"As Motu Bhai's samosa business grew, all kinds of people started showing up — some didn't understand English (and the waiter only spoke English), some couldn't speak or hear, and some were colorblind or had weak eyesight, making the menu's bright, clashing colors unreadable."
+      },
+      callout:{
+        title:"The Principle",
+        text:"Motu Bhai decided: if the business is going to run well, the shop has to be equally usable by everyone."
+      },
+      bullets:[
+        { title:"Multi-Language Menus", text:"The menu card was made available in multiple languages." },
+        { title:"Simple, High-Contrast Design", text:"The menu's colors and text were kept simple and high-contrast so reading it was never a problem." },
+        { title:"Trained, Inclusive Staff", text:"Waiters were trained in sign language so customers who couldn't speak could still communicate their order." }
+      ]
+    },
+    children:[
+    { label:"Keyboard Accessibility (Tab Order)",
+      content:{
+        bullets:[
+          { title:"Tab Order", text:"Users who can't use a mouse navigate with the keyboard instead. Pressing Tab should move focus through every input field and button in a logical, proper order." }
+        ]
+      }
+    },
+    { label:"Screen Readers (HTML5 Semantics)",
+      content:{
+        bullets:[
+          { title:"How It Works", text:"Visually impaired users, permanently or temporarily, rely on screen reader software. Using proper HTML5 semantics (like <header>, <main>, <button>) and correct markup lets the screen reader scan the content correctly and give accurate audio feedback." }
+        ]
+      }
+    },
+    { label:"Color Contrast & Vision Department",
+      content:{
+        bullets:[
+          { title:"Contrast & Colors", text:"Text and background colors need a contrast ratio that low-vision and colorblind users can read comfortably, without straining." }
+        ]
+      }
+    },
+    { label:"Multi-language Support",
+      content:{
+        bullets:[
+          { title:"Why It Matters", text:"Just like Motu Bhai made his menu available in multiple languages so no customer was excluded, a website should offer its content in the languages its users actually speak." }
+        ]
+      }
+    }
+  ]},
+  { label:"Consistency & Design Systems", icon:"🎨",
+    content:{
+      paragraphs:[
+        "The fifth pillar: keeping the experience consistent everywhere it runs — across browsers, devices, and eventually, an entire company."
+      ],
+      analogy:{
+        title:"The Analogy — Motu Bhai's Multi-Branch Chaos",
+        text:"After his samosas became a hit, Motu Bhai expanded into Connaught Place, Kashmiri Gate, and Chandni Chowk. His biggest challenge: making sure the quality and taste stayed exactly the same across every branch."
+      },
+      callout:{
+        title:"The Desi Solution",
+        text:"He set rules and standards so the taste stayed consistent everywhere."
+      }
+    },
+    children:[
+    { label:"Browser Consistency (Chrome, Firefox, Opera)",
+      content:{
+        paragraphs:[
+          "In the frontend world, those different branches are our different browsers — Chrome, Firefox, and Opera."
+        ],
+        callout:{
+          title:"The Challenge",
+          text:"CSS properties and JavaScript functionality don't behave identically across browsers — something that looks great in one browser can break in another."
+        },
+        bullets:[
+          { title:"CSS Adjustments", text:"Browser-level CSS tweaks to enable a property consistently." },
+          { title:"Style Components", text:"Using a component-based styling approach so you don't have to hand-write CSS for every browser version." }
+        ]
+      }
+    },
+    { label:"Polyfills (Dynamic Polyfills, Modernizer)",
+      content:{
+        bullets:[
+          { title:"What They Do", text:"When a JavaScript feature isn't supported out-of-the-box in some browser, a polyfill fills the gap so it works anyway — using tools like Modernizr or dynamic polyfills." }
+        ]
+      }
+    },
+    { label:"Design Systems",
+      content:{
+        paragraphs:[
+          "Motu Bhai now wants to go from a local business to an international brand — manually testing and quality-checking every branch by hand would waste enormous effort and money."
+        ],
+        callout:{
+          title:"The Real-World Problem",
+          text:"Different devices, different operating systems (Linux, Windows, macOS), and different versions and hardware for each — writing code by hand for every variation is nearly impossible."
+        },
+        bullets:[
+          { title:"How It Works", text:"Just like Motu Bhai centralized his recipes and core ingredients with clear guidelines, a Design System centralizes an application's reusable atomic components — buttons, forms, modals — with clear guidelines for using them." },
+          { title:"No Compatibility Worries", text:"Any developer consuming these centralized components doesn't need to worry about cross-browser or cross-OS compatibility — that responsibility belongs to the core team maintaining the design system." }
+        ]
+      },
+      children:[
+        { label:"Material UI", content:{ note:"Google's design system." } },
+        { label:"Fluent UI", content:{ note:"Microsoft's design system." } },
+        { label:"Atlassian", content:{ note:"Atlassian's own design system." } },
+        { label:"Semantic", content:{ note:"Named alongside Amazon in the source list." } },
+        { label:"Ant Design", content:{ note:"Alibaba's design system." } }
+      ]
+    }
+  ]},
+  { label:"Credibility & Trust (SEO)", icon:"🔍",
+    content:{
+      paragraphs:[
+        "The sixth pillar: getting people to actually find — and trust — what you've built."
+      ],
+      analogy:{
+        title:"The Analogy — Motu Bhai Wants Customers",
+        text:"Motu Bhai opened ventures from Delhi to international level — but if no customers show up, the shop doesn't run. He wanted his brand and quality good enough that nearby shop owners and locals would point people to his restaurant themselves, whenever someone asked where to find a good samosa or the best Kulhad chai."
+      },
+      callout:{
+        title:"Organic vs Paid",
+        text:"That word-of-mouth effect is organic self-promotion. The other option is paid promotions — running ads."
+      },
+      bullets:[
+        { title:"The Technical Version", text:"In the digital world, pulling traffic to a website comes down to Search Engine Optimization (SEO) — split into On-Page Optimization and Off-Page Techniques." }
+      ]
+    },
+    children:[
+    { label:"On-page Optimization",
+      content:{
+        paragraphs:[
+          "Making sure what's inside the shop is actually visible to search engines."
+        ]
+      },
+      children:[
+        { label:"Content Quality",
+          content:{
+            analogy:{
+              title:"The Analogy — Showcase Your Work",
+              text:"No matter how good the samosa is, if it isn't showcased at the counter, how will a customer know? Google does the same thing — it visits your website and scans the content to see what's actually on offer."
+            }
+          }
+        },
+        { label:"Head Tags (Title, Meta, Description)",
+          content:{
+            paragraphs:[
+              "The <head> tag in a website's HTML carries more power than it gets credit for."
+            ],
+            bullets:[
+              { title:"Title & Description", text:"The website's name and description need to be clear and on-point." },
+              { title:"Social Media Meta Tags", text:"When someone shares the site's link on Facebook or other social platforms, it should show a proper card preview." }
+            ]
+          }
+        },
+        { label:"Performance",
+          content:{
+            analogy:{
+              title:"The Analogy — Nobody Waits Hours for a Samosa",
+              text:"Motu Bhai makes great food, but if a customer has to wait hours for one samosa, they'll get frustrated and leave."
+            },
+            callout:{
+              title:"Same in Web Apps",
+              text:"If a site isn't performant and takes too long to load, the user leaves."
+            }
+          }
+        }
+      ]
+    },
+    { label:"Off-page Techniques",
+      content:{
+        paragraphs:[
+          "Publicity that happens outside the shop itself."
+        ]
+      },
+      children:[
+        { label:"Backlinks",
+          content:{
+            bullets:[
+              { title:"Why It Matters", text:"When other trusted sites and sources reference you — “this product is good, go check them out” — it raises the search engine's trust in your site." }
+            ]
+          }
+        },
+        { label:"Ads (Google AdWords, Facebook)",
+          content:{
+            bullets:[
+              { title:"How It Works", text:"Using paid platforms to digitize and promote the brand — tools like Google Tag Manager, Google AdWords, and Facebook Ads." }
+            ]
+          }
+        }
+      ]
+    }
+  ]},
+  { label:"Logging & Monitoring", icon:"📊",
+    content:{
+      paragraphs:[
+        "The seventh pillar: keeping an eye on shop hygiene — and on the customers themselves."
+      ],
+      analogy:{
+        title:"The Analogy — Motu Bhai's Restaurant Management",
+        text:"With branches now open, how would Motu Bhai know from a distance if everything was running smoothly? Was the sitting area too small for the crowd? Was a drinking glass cracked, risking a cut hand and a bad experience? What did customers actually like or dislike?"
+      },
+      callout:{
+        title:"The Solution",
+        text:"To track all of this, Motu Bhai started two things: Logging (recording every transaction, feedback, and event) and Monitoring (keeping an eye on the whole restaurant)."
+      },
+      bullets:[
+        { title:"Why It's Critical for Frontend", text:"Without proper logging and monitoring, you won't know what's actually going wrong for users on a live website." }
+      ]
+    },
+    children:[
+    { label:"Error Logging (Sentry, TrackJS)",
+      content:{
+        analogy:{
+          title:"The Analogy — Catching the Broken Glass",
+          text:"The moment a glass cracks or trash lands in the dining area, the waiter should clean it up before the customer even complains."
+        },
+        bullets:[
+          { title:"How It Works", text:"If a website fails to load or a feature breaks, catch that error yourself. Some customers will complain, but many silent users just walk away without saying anything." },
+          { title:"Tools", text:"Sentry and TrackJS are commonly used to automatically capture UI errors." }
+        ]
+      }
+    },
+    { label:"User Tracking (Amplitude, LogRocket)",
+      content:{
+        analogy:{
+          title:"The Analogy — Understanding Your Customers",
+          text:"What age group is visiting the samosa stall? What's their language background, and which time of day do they prefer?"
+        },
+        bullets:[
+          { title:"How It Works", text:"Track users' demographic data, language preferences, and in-app activity so they can be given a better experience." },
+          { title:"Tools", text:"Amplitude for this, and LogRocket for session replay." }
+        ]
+      }
+    },
+    { label:"User Activity & Feature Usage",
+      content:{
+        analogy:{
+          title:"The Analogy — Samosa vs. Extra Dishes",
+          text:"Motu Bhai put 50 different dishes on the menu, but customers only ever ask for the 5% that are the main items — samosa and chai. Why waste time and material on the other 95% nobody asks about?"
+        },
+        bullets:[
+          { title:"How It Works", text:"Track which features users actually use on a live app and which ones are completely ignored, so server resources and development time aren't wasted on features nobody needs." }
+        ]
+      }
+    },
+    { label:"Infra & Capacity Monitoring",
+      content:{
+        analogy:{
+          title:"The Analogy — Tables Full",
+          text:"A sudden rush of customers fills the shop's seating capacity — people are left standing, the same way a server can get overwhelmed and fail to handle incoming requests."
+        },
+        bullets:[
+          { title:"How It Works", text:"A sudden traffic spike on a website increases server load. Monitor traffic and scale servers up before the system goes down." }
+        ]
+      }
+    }
+  ]},
+  { label:"Security", icon:"🔒",
+    content:{
+      paragraphs:[
+        "The eighth pillar — and a critical one: protecting the shop from thieves, impersonators, and competitors."
+      ],
+      callout:{
+        title:"Motu Bhai's Realization",
+        text:"No matter how big the business gets or how trusted the customers are, if security isn't right, the shop can shut down in one shot."
+      }
+    },
+    children:[
+    { label:"DDoS Attack",
+      content:{
+        analogy:{
+          title:"The Analogy — Flooding the Kitchen with Fake Orders",
+          text:"A strange customer walked in and immediately placed a huge order — “10 samosas, 10 teas, 20 pakodas, bring it all!” The whole kitchen dropped every other table to cook just for him. When the food arrived, he laughed and said, “I don't actually have money — want me to wash dishes instead?” The kitchen stayed busy the whole time, and the genuine customers left without ever being served."
+        },
+        bullets:[
+          { title:"How It Works", text:"Fake traffic or automated bots flood a website so hard that the server gets too busy to let genuine users in. This is a DDoS (Distributed Denial of Service) attack, and defending against it matters a lot." }
+        ]
+      }
+    },
+    { label:"Authentication & Authorization",
+      content:{
+        analogy:{
+          title:"The Analogy — A Guard for the Kitchen",
+          text:"A shiny new competitor opened a stall right next door but never built a real kitchen. Whenever a customer came, they'd quietly order from Motu Bhai's kitchen and resell it under their own name. Customers thought the competitor was great — the food really did come from Motu Bhai's kitchen — but Motu Bhai never saw a rupee of the money."
+        },
+        bullets:[
+          { title:"How It Works", text:"Nobody should be able to access your server or data without being checked. Authenticate who someone is, and Authorize what they're allowed to access, so no one can walk away with data they don't have permission for." }
+        ]
+      }
+    },
+    { label:"iFrame Framing Attacks (CSP & CORS)",
+      content:{
+        analogy:{
+          title:"The Analogy — Stealing the Brand",
+          text:"Some competitors tell customers, “You don't need to go to Motu Bhai's shop, come to ours instead” — then build a small window inside their own shop (an iFrame) that shows Motu Bhai's shop directly, so people start associating that experience with the competitor's brand."
+        },
+        bullets:[
+          { title:"Content Security Policy (CSP)", text:"Stops your website from being loaded inside someone else's unauthorized page." },
+          { title:"CORS (Cross-Origin Resource Sharing)", text:"Decides which domains and browsers are allowed to load your website's data." }
+        ]
+      }
+    },
+    { label:"Man-in-the-Middle (MITM) Attack",
+      content:{
+        analogy:{
+          title:"The Analogy — Snatching the Samosa Tray",
+          text:"Like at a wedding — a waiter carries a hot tray of samosas from the kitchen, and midway, someone from another table blocks the path and says “this one's for our table,” snatching it away. The food never reaches the person it was actually made for."
+        },
+        bullets:[
+          { title:"How It Works", text:"While data (like a password or credit card details) is being transferred between client and server, a hacker intercepts it along the way. HTTPS and proper encryption are what stop this." }
+        ]
+      }
+    }
+  ]},
+  { label:"Performance & Optimization", icon:"⚡",
+    content:{
+      paragraphs:[
+        "Four areas: what gets sent to the browser, how it travels over the network, how the page gets rendered, and how smoothly it runs once it's live."
+      ]
+    },
+    children:[
+    { label:"Asset Optimization", icon:"📦",
+      content:{ note:"Episode 5", link: wl("Main video — Ep. 5", EP5, 0) },
+      children:[
+        { label:"Image Optimization", icon:"🖼️",
+          content:{ link: wl("segment", EP5, 334) },
+          children:[
+            { label:"Compression Techniques",
+              content:{ bullets:[{ title:"How It Works", text:"Shrink an image's file size so the site loads faster and server/bandwidth costs stay low. Use lossy (more compression) or lossless (no quality loss) depending on the need." }], link: wl("12:06", EP5, 726) } },
+            { label:"Lazy Loading",
+              content:{ bullets:[{ title:"How It Works", text:"Images outside the current viewport aren't loaded until the user scrolls near them. Achieved natively with loading=\"lazy\"." }], link: wl("47:47", EP5, 2867) } },
+            { label:"Progressive Enhancement",
+              content:{ bullets:[{ title:"How It Works", text:"Check whether the browser supports the modern, lightweight WebP format and serve that; otherwise fall back to a normal JPG/PNG." }], link: wl("17:47", EP5, 1067) } },
+            { label:"Responsive Images (srcset/sizes)",
+              content:{ bullets:[{ title:"How It Works", text:"Automatically serve the right image dimensions for the screen's resolution, using the srcset and sizes attributes." }], link: wl("23:19", EP5, 1399) } },
+            { label:"Adaptive Loading (DPR/Memory/Data)",
+              content:{ link: wl("30:00", EP5, 1800) },
+              children:[
+                { label:"DPR (Device Pixel Ratio)",
+                  content:{ bullets:[{ title:"How It Works", text:"On high-resolution displays (Retina/4K), load higher-density images (2x or 3x) to avoid pixelation." }], link: wl("19:08", EP5, 1148) } },
+                { label:"Memory & Data",
+                  content:{ bullets:[{ title:"How It Works", text:"Check for low-end phones/low RAM (navigator.deviceMemory) or a user's data-saver mode (navigator.connection.saveData), and skip heavy images/animations for them." }], link: wl("32:50", EP5, 1970) } }
+              ]
+            },
+            { label:"Visual Strategies (Blur/Sprites/Primary Color)",
+              children:[
+                { label:"Blur Effect",
+                  content:{ bullets:[{ title:"How It Works", text:"Instead of an empty gray box, stretch a tiny 1–2px version of the image with a blur filter while the real image loads (like Medium does)." }], link: wl("38:38", EP5, 2318) } },
+                { label:"CSS Sprites",
+                  content:{ bullets:[{ title:"How It Works", text:"Merge many small icons into a single image file, then show each one via position/coordinate offsets, avoiding lots of separate requests." }], link: wl("42:42", EP5, 2562) } },
+                { label:"Primary Color Background",
+                  content:{ bullets:[{ title:"How It Works", text:"Save an image's dominant color at upload time, and show that as a solid color block until the image finishes loading (like Google Images does)." }], link: wl("41:00", EP5, 2460) } }
+              ]
+            }
+          ]
+        },
+        { label:"Video Optimization", icon:"🎬",
+          content:{ link: wl("segment", EP5, 1702) },
+          children:[
+            { label:"Formats (WebM vs MP4)",
+              content:{ bullets:[{ title:"How It Works", text:"Prefer the lightweight, high-performance WebM format, keeping the heavier MP4 as a compatibility fallback." }], link: wl("53:19", EP5, 3199) } },
+            { label:"GIF Replacement",
+              content:{ bullets:[{ title:"How It Works", text:"GIFs are heavy and render slowly; replace them with lightweight, muted, autoplaying HTML5 <video> elements instead." }], link: wl("54:39", EP5, 3279) } },
+            { label:"Responsive Posters",
+              content:{ bullets:[{ title:"How It Works", text:"Before a video starts, show a static thumbnail poster image, positioned correctly with CSS (center / cover)." }], link: wl("56:39", EP5, 3399) } },
+            { label:"Streaming & Preload",
+              content:{ bullets:[{ title:"How It Works", text:"Instead of downloading the entire heavy video file at once, stream it from the server in packets/chunks. Use preload=\"metadata\" to fetch only the basic settings upfront." }], link: wl("58:58", EP5, 3538) } },
+            { label:"Audio Removal/Sync",
+              content:{ bullets:[{ title:"How It Works", text:"Strip the audio track entirely from background looping videos. For international apps, stream video and multi-language audio tracks separately and sync them client-side." }], link: wl("1:00:19", EP5, 3619) } }
+          ]
+        },
+        { label:"Font Optimization", icon:"🔤",
+          content:{ link: wl("segment", EP5, 2135) },
+          children:[
+            { label:"Font-Display Descriptor (Swap)",
+              content:{ bullets:[{ title:"How It Works", text:"Use font-display: swap so text isn't invisible while a custom font loads (avoiding FOIT) — a temporary system font shows immediately and swaps in seamlessly once the custom font is ready (FOUT)." }], link: wl("1:09:00", EP5, 4140) } },
+            { label:"Loading Methods (Preload/Data URI)",
+              children:[
+                { label:"Preload",
+                  content:{ bullets:[{ title:"How It Works", text:"Put important custom fonts at the top of the browser's priority list so fetching starts as soon as the HTML is parsed (<link rel=\"preload\">)." }], link: wl("1:17:19", EP5, 4639) } },
+                { label:"Data URI",
+                  content:{ bullets:[{ title:"How It Works", text:"Embed very small custom font files directly inside the CSS as base64 code, saving extra network round trips." }], link: wl("1:15:35", EP5, 4535) } }
+              ]
+            },
+            { label:"Font Face Observer",
+              content:{ bullets:[{ title:"How It Works", text:"A JS library that programmatically triggers new classes (like .fonts-loaded) on the body only once the custom font is actually ready in the browser." }], link: wl("1:22:26", EP5, 4946) } },
+            { label:"Subsetting Web Fonts",
+              content:{ bullets:[{ title:"How It Works", text:"Strip unused characters, language scripts, and non-critical formats out of a custom font to make it smaller and more targeted." }], link: wl("1:18:00", EP5, 4680) } }
+          ]
+        },
+        { label:"CSS Optimization", icon:"🖌️",
+          content:{ link: wl("segment", EP5, 2772) },
+          children:[
+            { label:"Critical CSS Rendering",
+              content:{ bullets:[{ title:"How It Works", text:"Instead of shipping one giant stylesheet for every use case, inline-load only the styles needed for the first paint (above-the-fold/header/sidebar) with top priority." }], link: wl("1:26:46", EP5, 5206) } },
+            { label:"Async Loading Hacks",
+              content:{ bullets:[{ title:"How It Works", text:"Attach dynamic loading tags to the rest of the non-critical CSS so it doesn't block the HTML parser." }], link: wl("1:37:00", EP5, 5820) } },
+            { label:"Lazy Loading with Media Attributes",
+              content:{ bullets:[{ title:"How It Works", text:"Add specific media attributes to stylesheet links (like media=\"print\" or device-targeting), so the browser treats them as non-render-blocking and downloads them at low priority." }], link: wl("1:33:58", EP5, 5638) } }
+          ]
+        },
+        { label:"JavaScript Optimization", icon:"🧮",
+          content:{ link: wl("segment", EP5, 3314) },
+          children:[
+            { label:"Script Loading (Async/Defer/Module)",
+              content:{ link: wl("1:42:00", EP5, 6120) },
+              children:[
+                { label:"Async",
+                  content:{ bullets:[{ title:"How It Works", text:"The script downloads in parallel in the background, but the moment it's downloaded, it halts HTML parsing to execute." }], link: wl("1:46:00", EP5, 6360) } },
+                { label:"Defer",
+                  content:{ bullets:[{ title:"How It Works", text:"HTML parsing continues smoothly and uninterrupted alongside the background download; execution only happens after HTML is fully parsed. Highly recommended." }], link: wl("1:45:00", EP5, 6300) } },
+                { label:"Type Module",
+                  content:{ bullets:[{ title:"How It Works", text:"Modern ES modules automatically follow defer-like loading behavior." }], link: wl("1:48:00", EP5, 6480) } }
+              ]
+            },
+            { label:"Web Workers (Offloading Main Thread)",
+              content:{ bullets:[{ title:"How It Works", text:"Shift heavy computational/logical work off the browser's main UI thread onto a separate worker thread running in the background, so interactive elements never get blocked." }], link: wl("1:51:14", EP5, 6674) } }
+          ]
+        }
+      ]
+    },
+    { label:"Network Optimization", icon:"🌐",
+      content:{ note:"Episode 4", link: wl("Main video — Ep. 4", EP4, 0) },
+      children:[
+        { label:"Resource Hinting", icon:"🔗",
+          content:{ link: wl("segment", EP4, 1377) },
+          children:[
+            { label:"Preload",
+              content:{ bullets:[{ title:"How It Works", text:"A strict hint to the browser that a specific resource (fonts/JS) will be needed immediately, so it should download it in parallel right away." }], link: wl("22:57", EP4, 1377) } },
+            { label:"Pre-fetch",
+              content:{ bullets:[{ title:"How It Works", text:"Safely predict the next screen/navigation and fetch + cache those assets before the user even clicks." }], link: wl("26:20", EP4, 1580) } },
+            { label:"Pre-connect",
+              content:{ bullets:[{ title:"How It Works", text:"When fetching from a third party (like Google Fonts), set up the DNS lookup, TCP handshake, and SSL negotiation in advance." }], link: wl("26:57", EP4, 1617) } },
+            { label:"DNS Pre-fetch",
+              content:{ bullets:[{ title:"How It Works", text:"A fallback for legacy/older browsers that resolves domain lookups early." }], link: wl("27:44", EP4, 1664) } },
+            { label:"Pre-render",
+              content:{ bullets:[{ title:"How It Works", text:"Fully compile a likely-next landing page — JS engine and all — in a hidden virtual browser tab, so the transition to it feels instant (0ms)." }], link: wl("27:11", EP4, 1631) } }
+          ]
+        },
+        { label:"Caching & Service Workers", icon:"🧰",
+          content:{ link: wl("segment", EP4, 1940) },
+          children:[
+            { label:"Service Worker Proxy",
+              content:{ bullets:[{ title:"How It Works", text:"A background system that inspects and proxies network calls, acting as a local bridge between the browser and the real servers." }], link: wl("32:20", EP4, 1940) } },
+            { label:"Lifecycle (Install/Activate/Fetch)",
+              content:{ link: wl("38:20", EP4, 2300) },
+              children:[
+                { label:"Install",
+                  content:{ bullets:[{ title:"How It Works", text:"Triggers the registration setup and maps out the client's cache elements." }], link: wl("38:20", EP4, 2300) } },
+                { label:"Activate",
+                  content:{ bullets:[{ title:"How It Works", text:"Flushes old cached elements and brings the new service worker fully active." }], link: wl("38:56", EP4, 2336) } },
+                { label:"Fetch",
+                  content:{ bullets:[{ title:"How It Works", text:"Intercepts network requests and runs Cache-First, Network-First, or custom offline logic." }], link: wl("39:11", EP4, 2351) } }
+              ]
+            },
+            { label:"Workbox Strategies",
+              content:{ bullets:[{ title:"How It Works", text:"Use Google's Workbox library directly instead of hand-writing cache routing rules — a clean, pre-built framework for common caching strategies." }], link: wl("39:55", EP4, 2395) } },
+            { label:"CDN Caching",
+              content:{ bullets:[{ title:"How It Works", text:"Serve static assets from geographically distributed edge servers (CDNs) to cut down latency from physical distance." }], link: wl("12:57", EP4, 777) } }
+          ]
+        },
+        { label:"Content Delivery", icon:"🚚",
+          children:[
+            { label:"Text Compression (Brotli/Gzip)",
+              content:{ bullets:[{ title:"How It Works", text:"Pack HTML/JS/CSS using binary compression algorithms (like the newer Brotli standard) so large bundles reach the browser heavily compressed." }], link: wl("50:46", EP4, 3046) } },
+            { label:"Content-Visibility: Auto",
+              content:{ bullets:[{ title:"How It Works", text:"A single CSS property that skips paint/layout computation for off-screen elements — can drop rendering cost dramatically (e.g. 232ms down to 30ms)." }], link: wl("17:44", EP4, 1064) } }
+          ]
+        }
+      ]
+    },
+    { label:"Client-side Databases & Caching", icon:"🗄️",
+      content:{
+        paragraphs:[
+          "Avoiding repeat trips to the server for things the browser can just remember."
+        ],
+        analogy:{
+          title:"The Analogy — Table Setup & the Buffet System",
+          text:"Motu Bhai noticed that for small things — tissue paper, water, an extra spoon — the waiter kept running back to the kitchen, making customers wait. His fix: put tissue paper, salt-pepper, and a water bottle on the table upfront, so the waiter never has to run back for those (this is caching). He went a step further and set up a buffet counter — customers could grab the dishes they wanted straight from this local buffet, no kitchen trips needed (this is the database)."
+        },
+        callout:{
+          title:"The Stale Food Challenge",
+          text:"If an item on the buffet goes stale, it can't be served — it has to be pulled and replaced with something fresh from the kitchen (the server)."
+        },
+        bullets:[
+          { title:"The Technical Version", text:"Instead of hammering the server with repeat API calls, store data in the browser itself so the site stays fast." }
+        ]
+      },
+      children:[
+        { label:"HTTP Caching (Static Assets)",
+          content:{
+            bullets:[
+              { title:"How It Works", text:"Static assets like images, CSS, and JavaScript files that don't change often get cached in the browser, so they don't need to be re-downloaded on every page reload." }
+            ]
+          }
+        },
+        { label:"In-memory & Apollo Caching",
+          content:{
+            bullets:[
+              { title:"In-Memory Caching", text:"Temporary data kept in dynamic runtime memory, with a decision on when it expires or gets deleted." },
+              { title:"GraphQL / Apollo Caching", text:"If you're using GraphQL, the Apollo cache decides on its own whether to serve data from cache or send a real new network request to the server." }
+            ]
+          }
+        },
+        { label:"State Management (Redux, Context API)",
+          content:{
+            bullets:[
+              { title:"How It Works", text:"Redux or React's Context API manage client-side data in an organized way — normalized or denormalized — across the app." }
+            ]
+          }
+        },
+        { label:"Storage (Local, Session, Cookies, IndexedDB)",
+          content:{
+            bullets:[
+              { title:"Local Storage", text:"Stores data in the browser permanently." },
+              { title:"Session Storage", text:"Deletes data as soon as the tab is closed." },
+              { title:"Cookies", text:"Small pieces of data transferred between client and server to maintain user identity." },
+              { title:"IndexedDB", text:"A database inside the browser for storing larger, more complex transactional data." }
+            ]
+          }
+        }
+      ]
+    },
+    { label:"Rendering Strategies", icon:"🖥️",
+      content:{ note:"Episode 4", link: wl("42:24", EP4, 2544) },
+      children:[
+        { label:"Server-Side Rendering (SSR)",
+          content:{ bullets:[{ title:"How It Works", text:"The server fully compiles each page's components per request and ships complete, ready HTML." }], link: wl("42:24", EP4, 2544) } },
+        { label:"Client-Side Rendering (CSR)",
+          content:{ bullets:[{ title:"How It Works", text:"The server sends a mostly blank shell, and the browser runs JavaScript locally to compile the entire layout at runtime (e.g. a standard React app)." }], link: wl("42:24", EP4, 2544) } },
+        { label:"SSR with Rehydration",
+          content:{ bullets:[{ title:"How It Works", text:"A hybrid: a static HTML frame displays fast, then background execution attaches the real interactive JS listeners on top of it (e.g. Next.js)." }], link: wl("42:24", EP4, 2544) } },
+        { label:"CSR with Pre-rendering",
+          content:{ bullets:[{ title:"How It Works", text:"Static shells and style templates are already compiled and ready as part of the local build." }], link: wl("42:24", EP4, 2544) } },
+        { label:"Static Rendering",
+          content:{ bullets:[{ title:"How It Works", text:"Pages with no dynamic updates are compiled to static files at build time (npm run build) and shipped straight to a CDN." }], link: wl("42:24", EP4, 2544) } }
+      ]
+    },
+    { label:"Runtime Performance", icon:"🎞️",
+      content:{ note:"Episode 4", link: wl("Main video — Ep. 4", EP4, 0) },
+      children:[
+        { label:"Browser Rendering Cycle", icon:"🎯",
+          content:{ link: wl("segment", EP4, 3237) },
+          children:[
+            { label:"Frame Budget (16.67ms)",
+              content:{ bullets:[{ title:"How It Works", text:"For a smooth 60Hz scroll, layout, paint, and compositing must all finish inside a strict 16.67ms window per frame — once browser overhead is subtracted, the realistic target is closer to 10ms." }], link: wl("53:57", EP4, 3237) } },
+            { label:"Avoid Layout Shifts",
+              content:{ bullets:[{ title:"How It Works", text:"Reserve space for image/video dimensions up front so elements don't jump around as they load (avoiding CLS issues)." }], link: wl("53:57", EP4, 3237) } },
+            { label:"Repaint Management",
+              content:{ bullets:[{ title:"How It Works", text:"Prefer tweaking things like shadows and background colors over changes that force expensive height/width recalculations." }], link: wl("53:57", EP4, 3237) } },
+            { label:"Compositing (Transform/Opacity)",
+              content:{ bullets:[{ title:"How It Works", text:"Animations are safest when they stay inside the compositing step — using GPU-friendly properties like transform: translate() and opacity to bypass heavy layout/paint recalculation entirely." }], link: wl("53:57", EP4, 3237) } }
+          ]
+        }
+      ]
+    }
+  ]},
+  { label:"Testing", icon:"🧪",
+    content:{
+      paragraphs:[
+        "The final and most important pillar: after building the shop, securing it, and making it fast — how do you know the food you're serving actually tastes right? There are three standard testing levels."
+      ]
+    },
+    children:[
+    { label:"Unit Testing (Jest, Mocha, Chai)",
+      content:{
+        analogy:{
+          title:"The Analogy — Individual Samosa Testing",
+          text:"Is the samosa tasty on its own? Is the cup of chai perfect by itself? Each item is tested alone, without anything else around it."
+        },
+        bullets:[
+          { title:"How It Works", text:"The smallest units of code — low-level programs and individual functions — are checked to make sure they do exactly what they're supposed to. For example: does the logic for telling sweet chutney apart from sour chutney return the right result?" },
+          { title:"Tools", text:"Jest, Mocha, and Chai." }
+        ]
+      }
+    },
+    { label:"Integration Testing (Cypress)",
+      content:{
+        analogy:{
+          title:"The Analogy — Samosa + Chole Combo Testing",
+          text:"The samosa was tasty alone, but once it's combined with chole on the same plate, how does the combination taste together? Do they actually fit well on the plate side by side?"
+        },
+        bullets:[
+          { title:"How It Works", text:"When two or more separate modules or features are connected (integrated), do they work together without issues?" },
+          { title:"Tools", text:"Cypress." }
+        ]
+      }
+    },
+    { label:"End-to-End (E2E) Testing (Cypress, Selenium, Playwright, Protractor)",
+      content:{
+        analogy:{
+          title:"The Analogy — The Customer's Entire Flow",
+          text:"A customer walks in, sits down, eats chole-samosa and chai, pays, and gives feedback. Did that entire flow complete smoothly, with no bottlenecks or issues along the way?"
+        },
+        bullets:[
+          { title:"How It Works", text:"Simulate a real user's start-to-finish flow through the application — from landing on the page to completing checkout — and check that the whole system runs without crashing or erroring." },
+          { title:"Tools", text:"Cypress, Selenium, Playwright (Microsoft's very popular tool), and the older Protractor." }
+        ]
+      }
+    }
+  ]}
+];
+
+function parseLabel(label){
+  const matches = [...label.matchAll(/\(([^)]+)\)/g)].map(m => m[1]);
+  const title = label.replace(/\s*\([^)]+\)/g, "").trim();
+  return { title, subtitle: matches.join(", ") };
+}
+
+function countTopics(nodes){
+  let n = 0;
+  for(const node of nodes){
+    n++;
+    if(node.children) n += countTopics(node.children);
+  }
+  return n;
+}
+const TOTAL_TOPICS = countTopics(TREE);
+const TOTAL_CATEGORIES = TREE.length;
+
+function pathFromHash(){
+  const raw = location.hash.replace(/^#\/?/, "");
+  if(!raw) return [];
+  return raw.split("/").filter(s => s !== "").map(Number).filter(n => !Number.isNaN(n));
+}
+
+function nodeChainFromPath(path){
+  let chain = [{ label: ROOT_LABEL, icon:"🗂️", children: TREE }];
+  let level = TREE;
+  for(const idx of path){
+    if(!level || !level[idx]) return null;
+    chain.push(level[idx]);
+    level = level[idx].children;
+  }
+  return chain;
+}
+
+function topLevelIconForPath(path, chain){
+  if(path.length === 0) return "🗂️";
+  for(let i = chain.length - 1; i >= 1; i--){
+    if(chain[i].icon) return chain[i].icon;
+  }
+  return "✦";
+}
+
+function hashFor(path){
+  return "#/" + path.join("/");
+}
+
+function renderCrumbs(path, chain){
+  const el = document.getElementById("crumbs");
+  const lastIdx = chain.length - 1;
+
+  // Full trail — used on wider screens where there's room for every level.
+  let fullHtml = "";
+  for(let i = 0; i < chain.length; i++){
+    const label = chain[i].label;
+    if(i === lastIdx){
+      fullHtml += `<span class="current">${label}</span>`;
+    } else {
+      fullHtml += `<a href="${hashFor(path.slice(0, i))}">${label}</a><span class="sep">›</span>`;
+    }
+  }
+
+  // Compact trail — home icon + collapsed "…" menu for hidden ancestors + parent + current.
+  // Keeps mobile breadcrumbs on one line, always ending in the page you're actually on,
+  // instead of forcing a horizontal scroll to find it (the pattern GitHub/Drive/Finder use).
+  let compactHtml = `<a class="crumb-home" href="#/" title="${chain[0].label}">🏠</a>`;
+  if(lastIdx === 1){
+    compactHtml += `<span class="sep">›</span><span class="current">${chain[1].label}</span>`;
+  } else if(lastIdx >= 2){
+    const middle = chain.slice(1, lastIdx - 1);
+    const parent = chain[lastIdx - 1];
+    const current = chain[lastIdx];
+    compactHtml += `<span class="sep">›</span>`;
+    if(middle.length > 0){
+      const menuItems = middle.map((n, i) => `<a href="${hashFor(path.slice(0, i + 1))}">${n.label}</a>`).join("");
+      compactHtml += `
+        <span class="crumb-ellipsis-wrap">
+          <button type="button" class="crumb-ellipsis" onclick="toggleCrumbMenu(this)" aria-label="Show hidden breadcrumb levels">···</button>
+          <div class="crumb-menu">${menuItems}</div>
+        </span>
+        <span class="sep">›</span>`;
+    }
+    compactHtml += `<a class="crumb-parent" href="${hashFor(path.slice(0, lastIdx - 1))}">${parent.label}</a>`;
+    compactHtml += `<span class="sep">›</span><span class="current">${current.label}</span>`;
+  }
+
+  el.innerHTML = `<div class="crumbs-full">${fullHtml}</div><div class="crumbs-compact">${compactHtml}</div>`;
+}
+
+function toggleCrumbMenu(button){
+  const wrap = button.closest(".crumb-ellipsis-wrap");
+  const isOpen = wrap.classList.contains("open");
+  document.querySelectorAll(".crumb-ellipsis-wrap.open").forEach(w => w.classList.remove("open"));
+  if(!isOpen) wrap.classList.add("open");
+}
+
+document.addEventListener("click", (e) => {
+  if(!e.target.closest(".crumb-ellipsis-wrap")){
+    document.querySelectorAll(".crumb-ellipsis-wrap.open").forEach(w => w.classList.remove("open"));
+  }
+});
+
+function hasRichContent(content){
+  return !!(content && (content.paragraphs || content.analogy || content.callout || content.bullets));
+}
+
+function cardPreview(node){
+  const { subtitle } = parseLabel(node.label);
+  if(subtitle) return subtitle;
+  const c = node.content;
+  if(c){
+    if(c.note) return c.note;
+    if(c.paragraphs && c.paragraphs[0]){
+      const p = c.paragraphs[0];
+      return p.length > 100 ? p.slice(0, 97) + "…" : p;
+    }
+    if(c.bullets && c.bullets[0]){
+      const b = c.bullets[0];
+      const text = `${b.title} — ${b.text}`;
+      return text.length > 100 ? text.slice(0, 97) + "…" : text;
+    }
+  }
+  return "";
+}
+
+function renderContent(content){
+  if(!content) return "";
+  let html = '<div class="content-block">';
+  if(content.paragraphs){
+    content.paragraphs.forEach(p => { html += `<p class="para">${p}</p>`; });
+  }
+  if(content.analogy){
+    html += `<div class="analogy-box"><span class="tag">💡 ${content.analogy.title}</span>${content.analogy.text}</div>`;
+  }
+  if(content.callout){
+    html += `<div class="callout-box"><span class="tag">🔑 ${content.callout.title}</span>${content.callout.text}</div>`;
+  }
+  if(content.bullets){
+    html += '<ul class="bullet-list">';
+    content.bullets.forEach(b => {
+      html += `<li class="bullet-item"><span class="dot">▸</span><span><b>${b.title}:</b> ${b.text}</span></li>`;
+    });
+    html += '</ul>';
+  }
+  if(content.note){
+    html += `<span class="note-pill">✨ ${content.note}</span>`;
+  }
+  if(content.link){
+    html += `<a class="watch-link" href="${content.link.url}" target="_blank" rel="noopener">▶ ${content.link.label}</a>`;
+  }
+  if(content.related){
+    html += `<a class="related-link" href="${hashFor(content.related.path)}"><span class="rl-icon">🔗</span><span class="rl-text">${content.related.text}</span><span class="rl-arrow">›</span></a>`;
+  }
+  html += '</div>';
+  return html;
+}
+
+function renderHome(){
+  const view = document.getElementById("view");
+  view.innerHTML = `
+    <div class="hero">
+      <span class="eyebrow">Interactive Mind Map</span>
+      <h1>${ROOT_LABEL}</h1>
+      <p>Explore the building blocks of large-scale frontend architecture. Click into any branch, drill down through the layers, and use Back / Home / breadcrumbs to navigate.</p>
+      <div class="stats">
+        <div class="stat"><b>${TOTAL_CATEGORIES}</b><span>Core Areas</span></div>
+        <div class="stat"><b>${TOTAL_TOPICS}</b><span>Total Topics</span></div>
+      </div>
+    </div>
+    <div class="grid" id="grid"></div>
+  `;
+  const grid = document.getElementById("grid");
+  TREE.forEach((node, i) => {
+    const { title } = parseLabel(node.label);
+    const preview = cardPreview(node);
+    const childCount = node.children ? node.children.length : 0;
+    const a = document.createElement("a");
+    a.className = "card";
+    a.href = hashFor([i]);
+    a.style.animationDelay = (i * 45) + "ms";
+    a.innerHTML = `
+      <div class="top-row">
+        <span class="icon">${node.icon || "✦"}</span>
+        <span class="right-cluster">
+          ${node.content ? '<span class="filled-dot" title="Content added"></span>' : ""}
+          <span class="chev">›</span>
+        </span>
+      </div>
+      <h3>${title}</h3>
+      ${preview ? `<p class="sub">${preview}</p>` : ""}
+      <span class="chip">${childCount} topics</span>
+    `;
+    grid.appendChild(a);
+  });
+}
+
+function renderBranch(path, chain){
+  const node = chain[chain.length - 1];
+  const view = document.getElementById("view");
+  const { title } = parseLabel(node.label);
+  const icon = node.icon || topLevelIconForPath(path, chain);
+  view.innerHTML = `
+    <h2 class="section-title"><span>${icon}</span> ${title} <span class="level-tag">Level ${path.length}</span></h2>
+    ${renderContent(node.content)}
+    <div class="grid" id="grid"></div>
+  `;
+  const grid = document.getElementById("grid");
+  node.children.forEach((child, i) => {
+    const { title: ctitle } = parseLabel(child.label);
+    const preview = cardPreview(child);
+    const hasKids = !!child.children;
+    const a = document.createElement("a");
+    a.className = "card";
+    a.href = hashFor([...path, i]);
+    a.style.animationDelay = (i * 45) + "ms";
+    a.innerHTML = `
+      <div class="top-row">
+        <span class="icon">${hasKids ? (child.icon || "✦") : "▹"}</span>
+        <span class="right-cluster">
+          ${child.content ? '<span class="filled-dot" title="Content added"></span>' : ""}
+          <span class="chev">›</span>
+        </span>
+      </div>
+      <h3>${ctitle}</h3>
+      ${preview ? `<p class="sub">${preview}</p>` : ""}
+      ${hasKids ? `<span class="chip">${child.children.length} topics</span>` : ""}
+    `;
+    grid.appendChild(a);
+  });
+}
+
+function renderLeaf(path, chain){
+  const node = chain[chain.length - 1];
+  const view = document.getElementById("view");
+  const { title, subtitle } = parseLabel(node.label);
+  const icon = topLevelIconForPath(path, chain);
+  const rich = hasRichContent(node.content);
+  view.innerHTML = `
+    <div class="leaf-wrap">
+      <div class="leaf-card${rich ? " rich" : ""}">
+        <div class="icon-big">${icon}</div>
+        <h2>${title}</h2>
+        ${subtitle ? `<div class="badge">${subtitle}</div>` : ""}
+        ${renderContent(node.content)}
+        <div class="path-label">${chain.slice(1).map(n => parseLabel(n.label).title).join(" → ")}</div>
+      </div>
+    </div>
+  `;
+}
+
+function syncTopbarHeight(){
+  const tb = document.getElementById("topbar");
+  const wrap = document.getElementById("wrap");
+  if(tb && wrap){
+    wrap.style.paddingTop = (tb.offsetHeight + 16) + "px";
+  }
+}
+
+function render(){
+  let path = pathFromHash();
+  let chain = nodeChainFromPath(path);
+  if(!chain){
+    path = [];
+    chain = nodeChainFromPath(path);
+    history.replaceState(null, "", "#/");
+  }
+
+  document.getElementById("backBtn").classList.toggle("disabled", path.length === 0);
+  document.getElementById("homeBtn").classList.toggle("disabled", path.length === 0);
+  renderCrumbs(path, chain);
+
+  const currentNode = chain[chain.length - 1];
+  if(path.length === 0){
+    renderHome();
+  } else if(currentNode.children){
+    renderBranch(path, chain);
+  } else {
+    renderLeaf(path, chain);
+  }
+  syncTopbarHeight();
+  window.scrollTo(0, 0);
+}
+
+function goBack(){
+  if(pathFromHash().length === 0) return;
+  if(history.length > 1){
+    history.back();
+  } else {
+    location.hash = "#/";
+  }
+}
+
+document.addEventListener("keydown", (e) => {
+  if(e.key === "Backspace" && document.activeElement.tagName !== "INPUT"){
+    e.preventDefault();
+    goBack();
+  }
+});
+
+window.addEventListener("hashchange", render);
+window.addEventListener("DOMContentLoaded", render);
+window.addEventListener("resize", syncTopbarHeight);
+if(!location.hash) location.hash = "#/";
+render();
+</script>
+</body>
+</html>
